@@ -5,6 +5,8 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { OverviewCards } from '@/components/dashboard/overview-cards';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { KanbanBoard } from '@/components/clients/kanban-board';
+import { CalendarView } from '@/components/agenda/calendar-view';
+import { FinancialDashboard } from '@/components/financeiro/financial-dashboard';
 import { GoalsPanel } from '@/components/goals/goals-panel';
 import { AIAssistant } from '@/components/ai/ai-assistant';
 import { useApp } from '@/contexts/app-context';
@@ -27,27 +29,11 @@ function ClientsView() {
 }
 
 function AgendaView() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Agenda</h2>
-      <div className="text-center py-12 text-muted-foreground">
-        <p>Módulo de agenda em desenvolvimento</p>
-        <p className="text-sm">Integração com Google Calendar em breve</p>
-      </div>
-    </div>
-  );
+  return <CalendarView />;
 }
 
 function FinanceiroView() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Financeiro</h2>
-      <div className="text-center py-12 text-muted-foreground">
-        <p>Módulo financeiro em desenvolvimento</p>
-        <p className="text-sm">Controle de vendas e despesas em breve</p>
-      </div>
-    </div>
-  );
+  return <FinancialDashboard />;
 }
 
 function MetasView() {
