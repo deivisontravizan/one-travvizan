@@ -37,13 +37,15 @@ const predefinedPrompts = {
   ]
 };
 
-const aiResponses = {
+const aiResponses: Record<string, Record<string, string>> = {
   whatsapp: {
     "Resposta para orçamento de tatuagem fine line": "Oi! 😊 Que bom que você se interessou pelo estilo fine line! Para fazer um orçamento preciso, preciso saber:\n\n• Qual o tamanho aproximado?\n• Onde seria no corpo?\n• Você tem alguma referência?\n\nMeus valores para fine line começam em R$ 300 para peças pequenas. Posso agendar uma conversa para te mostrar meu portfólio e definirmos todos os detalhes! ✨",
     
     "Follow-up para cliente que não respondeu": "Oi! Tudo bem? 😊\n\nVi que você demonstrou interesse na tatuagem que conversamos. Ainda está pensando no projeto?\n\nSe tiver alguma dúvida ou quiser ajustar alguma coisa, estou aqui! Minha agenda está bem corrida, mas sempre dou um jeitinho para projetos especiais como o seu 😉\n\nMe avisa se ainda tem interesse! 🎨",
     
-    "Mensagem de confirmação de agendamento": "Perfeito! ✅ Seu agendamento está confirmado:\n\n📅 Data: [DATA]\n⏰ Horário: [HORÁRIO]\n📍 Local: [ENDEREÇO]\n💰 Valor: R$ [VALOR]\n\nLembretes importantes:\n• Venha alimentado e hidratado\n• Evite álcool 24h antes\n• Use roupas confortáveis\n• Traga documento com foto\n\nQualquer dúvida, me chama! Mal posso esperar para criar essa arte em você! 🎨✨"
+    "Mensagem de confirmação de agendamento": "Perfeito! ✅ Seu agendamento está confirmado:\n\n📅 Data: [DATA]\n⏰ Horário: [HORÁRIO]\n📍 Local: [ENDEREÇO]\n💰 Valor: R$ [VALOR]\n\nLembretes importantes:\n• Venha alimentado e hidratado\n• Evite álcool 24h antes\n• Use roupas confortáveis\n• Traga documento com foto\n\nQualquer dúvida, me chama! Mal posso esperar para criar essa arte em você! 🎨✨",
+    
+    "Resposta para cliente interessado em realismo": "Que incrível! O realismo é uma das minhas especialidades! 🎨\n\nPara criar uma peça perfeita, preciso entender:\n• Qual referência você tem em mente?\n• Tamanho desejado?\n• Localização no corpo?\n• Pretende fazer em preto e cinza ou colorido?\n\nMeu trabalho em realismo tem valores a partir de R$ 500, dependendo da complexidade. Posso te mostrar meu portfólio específico desse estilo!\n\nVamos conversar? 📱"
   },
   
   instagram: {
@@ -51,15 +53,19 @@ const aiResponses = {
     
     "Story para mostrar trabalho do dia": "🎨 TRABALHO DO DIA\n\nMais uma arte saindo do forno! ✨\n\nEstilo: Fine Line\nTempo: 3h\nCliente: Primeira tattoo 💙\n\nO nervosismo no início e o sorriso no final... isso não tem preço! 😊\n\n#tattooartist #fineline #primeiratat #tattooday",
     
-    "Reel sobre processo de criação": "🎬 ROTEIRO PARA REEL - PROCESSO DE CRIAÇÃO\n\n1. ABERTURA (2s): Folha em branco + música inspiradora\n2. SKETCH (3s): Mão desenhando o rascunho\n3. REFINAMENTO (2s): Detalhes sendo adicionados\n4. STENCIL (2s): Transferindo para o papel transfer\n5. APLICAÇÃO (3s): Colocando o stencil na pele\n6. RESULTADO (3s): Tatuagem finalizada\n\n💡 TEXTO: 'Do papel para a pele: o processo que transforma ideias em arte'\n\n🎵 MÚSICA: Algo inspirador e suave\n\n#processo #tattooartist #bastidores #arte"
+    "Reel sobre processo de criação": "🎬 ROTEIRO PARA REEL - PROCESSO DE CRIAÇÃO\n\n1. ABERTURA (2s): Folha em branco + música inspiradora\n2. SKETCH (3s): Mão desenhando o rascunho\n3. REFINAMENTO (2s): Detalhes sendo adicionados\n4. STENCIL (2s): Transferindo para o papel transfer\n5. APLICAÇÃO (3s): Colocando o stencil na pele\n6. RESULTADO (3s): Tatuagem finalizada\n\n💡 TEXTO: 'Do papel para a pele: o processo que transforma ideias em arte'\n\n🎵 MÚSICA: Algo inspirador e suave\n\n#processo #tattooartist #bastidores #arte",
+    
+    "Post promocional para dezembro": "🎄 DEZEMBRO ESPECIAL - TATTOO DE NATAL! 🎁\n\nQue tal terminar o ano marcando algo especial na pele?\n\n✨ PROMOÇÃO DEZEMBRO:\n• 15% OFF em tattoos até 31/12\n• Vale-presente disponível\n• Agendamento para janeiro já aberto\n\nEsses são os últimos dias para garantir sua arte em 2024! 📅\n\nChama no direct para agendar! 💬\n\n#tattoodenatal #promocaodezembro #tattoo2024 #valepresente #agendaaberta"
   },
   
   business: {
     "Como captar mais clientes?": "🎯 ESTRATÉGIAS PARA CAPTAR MAIS CLIENTES:\n\n1. **REDES SOCIAIS**\n• Poste diariamente no Instagram\n• Use hashtags locais (#tattooSP #tatuagemSP)\n• Faça parcerias com outros artistas\n• Stories interativos (enquetes, perguntas)\n\n2. **INDICAÇÕES**\n• Ofereça desconto para quem indica\n• Peça para clientes satisfeitos avaliarem\n• Mantenha contato pós-tatuagem\n\n3. **PRESENÇA LOCAL**\n• Participe de convenções\n• Faça parcerias com estúdios\n• Networking com outros profissionais\n\n4. **ATENDIMENTO DIFERENCIADO**\n• Responda rápido no WhatsApp\n• Seja consultivo, não apenas vendedor\n• Ofereça experiência completa\n\n💡 DICA EXTRA: Clientes satisfeitos são seus melhores vendedores!",
     
-    "Ideias de promoção para dezembro": "🎄 PROMOÇÕES DE DEZEMBRO - IDEIAS CRIATIVAS:\n\n1. **NATAL TATTOO**\n• 'Presente para si mesmo' - 15% off\n• Vale-presente para dar de presente\n• Promoção 'Amigo Secreto' - desconto duplo\n\n2. **RÉVEILLON**\n• 'Novo ano, nova tattoo' - pacote especial\n• Desconto progressivo (quanto mais próximo do ano novo, maior o desconto)\n\n3. **COMBOS ESPECIAIS**\n• Tattoo + retoque grátis\n• 2 tattoos pequenas pelo preço de 1 grande\n• Desconto para grupos (amigos/casais)\n\n4. **MARKETING EMOCIONAL**\n• 'Marque 2024 na pele'\n• 'Termine o ano com arte'\n• Stories com depoimentos de clientes\n\n💰 ESTRUTURA: Desconto real + valor percebido alto",
+    "Ideias de promoção para o fim do ano": "🎄 PROMOÇÕES DE DEZEMBRO - IDEIAS CRIATIVAS:\n\n1. **NATAL TATTOO**\n• 'Presente para si mesmo' - 15% off\n• Vale-presente para dar de presente\n• Promoção 'Amigo Secreto' - desconto duplo\n\n2. **RÉVEILLON**\n• 'Novo ano, nova tattoo' - pacote especial\n• Desconto progressivo (quanto mais próximo do ano novo, maior o desconto)\n\n3. **COMBOS ESPECIAIS**\n• Tattoo + retoque grátis\n• 2 tattoos pequenas pelo preço de 1 grande\n• Desconto para grupos (amigos/casais)\n\n4. **MARKETING EMOCIONAL**\n• 'Marque 2024 na pele'\n• 'Termine o ano com arte'\n• Stories com depoimentos de clientes\n\n💰 ESTRUTURA: Desconto real + valor percebido alto",
     
-    "Como aumentar ticket médio?": "💰 ESTRATÉGIAS PARA AUMENTAR TICKET MÉDIO:\n\n1. **UPSELL INTELIGENTE**\n• Sugira adicionar elementos à tattoo\n• Ofereça upgrade de tamanho\n• Proponha sombreado/cor extra\n\n2. **PACOTES DE VALOR**\n• Tattoo + retoque + cuidados\n• Sessão + produtos pós-tattoo\n• Múltiplas sessões com desconto\n\n3. **CONSULTORIA ESPECIALIZADA**\n• Seja consultivo no atendimento\n• Eduque sobre qualidade vs preço\n• Mostre portfolio de trabalhos premium\n\n4. **EXPERIÊNCIA PREMIUM**\n• Ambiente diferenciado\n• Atendimento personalizado\n• Follow-up pós-tattoo\n\n5. **POSICIONAMENTO**\n• Foque na qualidade, não no preço\n• Destaque sua especialização\n• Mostre resultados de longo prazo\n\n🎯 META: Transformar orçamento em experiência completa!"
+    "Como aumentar ticket médio?": "💰 ESTRATÉGIAS PARA AUMENTAR TICKET MÉDIO:\n\n1. **UPSELL INTELIGENTE**\n• Sugira adicionar elementos à tattoo\n• Ofereça upgrade de tamanho\n• Proponha sombreado/cor extra\n\n2. **PACOTES DE VALOR**\n• Tattoo + retoque + cuidados\n• Sessão + produtos pós-tattoo\n• Múltiplas sessões com desconto\n\n3. **CONSULTORIA ESPECIALIZADA**\n• Seja consultivo no atendimento\n• Eduque sobre qualidade vs preço\n• Mostre portfolio de trabalhos premium\n\n4. **EXPERIÊNCIA PREMIUM**\n• Ambiente diferenciado\n• Atendimento personalizado\n• Follow-up pós-tattoo\n\n5. **POSICIONAMENTO**\n• Foque na qualidade, não no preço\n• Destaque sua especialização\n• Mostre resultados de longo prazo\n\n🎯 META: Transformar orçamento em experiência completa!",
+    
+    "Estratégias para fidelizar clientes": "💙 ESTRATÉGIAS DE FIDELIZAÇÃO:\n\n1. **PÓS-VENDA EXCEPCIONAL**\n• Follow-up após 1 semana\n• Dicas de cuidados personalizadas\n• Fotos da evolução da cicatrização\n\n2. **PROGRAMA DE FIDELIDADE**\n• Desconto na 3ª tatuagem\n• Retoque gratuito após 6 meses\n• Prioridade na agenda\n\n3. **RELACIONAMENTO CONTÍNUO**\n• Lembre de datas especiais\n• Convites para eventos exclusivos\n• Grupo VIP no WhatsApp\n\n4. **EXPERIÊNCIA MEMORÁVEL**\n• Ambiente acolhedor\n• Playlist personalizada\n• Certificado da tatuagem\n\n5. **VALOR AGREGADO**\n• Consultoria de estilo gratuita\n• Dicas de combinação com outras tattoos\n• Sugestões de evolução do projeto\n\n🎯 RESULTADO: Cliente vira embaixador da marca!"
   }
 };
 
@@ -74,8 +80,8 @@ export function AIAssistant() {
     
     // Simular delay da IA
     setTimeout(() => {
-      const response = aiResponses[activeTab as keyof typeof aiResponses]?.[prompt] || 
-                      "Resposta gerada pela IA baseada no seu prompt.";
+      const categoryResponses = aiResponses[activeTab];
+      const response = categoryResponses?.[prompt] || "Resposta gerada pela IA baseada no seu prompt.";
       setSelectedResponse(response);
       setIsGenerating(false);
     }, 1500);
