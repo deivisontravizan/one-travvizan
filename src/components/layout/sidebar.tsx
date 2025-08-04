@@ -9,6 +9,7 @@ import { useApp } from '@/contexts/app-context';
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   Calendar,
   DollarSign,
   Target,
@@ -17,7 +18,8 @@ import {
   User,
   Building2,
   Moon,
-  Sun
+  Sun,
+  Workflow
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -29,10 +31,16 @@ const menuItems = [
     description: 'Visão geral'
   },
   {
-    id: 'clients',
-    label: 'Clientes',
-    icon: Users,
-    description: 'CRM e gestão'
+    id: 'cadastro',
+    label: 'Cadastro',
+    icon: UserPlus,
+    description: 'Dados dos clientes'
+  },
+  {
+    id: 'crm',
+    label: 'CRM Visual',
+    icon: Workflow,
+    description: 'Funil de vendas'
   },
   {
     id: 'agenda',

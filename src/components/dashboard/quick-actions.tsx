@@ -10,7 +10,8 @@ import {
   MessageSquare,
   Instagram,
   Clock,
-  Users
+  Users,
+  Workflow
 } from 'lucide-react';
 
 export function QuickActions() {
@@ -26,8 +27,14 @@ export function QuickActions() {
     {
       label: 'Novo Cliente',
       icon: Plus,
-      action: () => setCurrentView('clients'),
+      action: () => setCurrentView('cadastro'),
       variant: 'default' as const
+    },
+    {
+      label: 'CRM Visual',
+      icon: Workflow,
+      action: () => setCurrentView('crm'),
+      variant: 'outline' as const
     },
     {
       label: 'Agendar Sessão',
@@ -38,12 +45,6 @@ export function QuickActions() {
     {
       label: 'IA Assistant',
       icon: MessageSquare,
-      action: () => setCurrentView('ia'),
-      variant: 'outline' as const
-    },
-    {
-      label: 'Post Instagram',
-      icon: Instagram,
       action: () => setCurrentView('ia'),
       variant: 'outline' as const
     }

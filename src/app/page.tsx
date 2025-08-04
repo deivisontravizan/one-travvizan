@@ -4,7 +4,8 @@ import React from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { OverviewCards } from '@/components/dashboard/overview-cards';
 import { QuickActions } from '@/components/dashboard/quick-actions';
-import { KanbanBoard } from '@/components/clients/kanban-board';
+import { ClientList } from '@/components/cadastro/client-list';
+import { CRMVisual } from '@/components/crm/crm-visual';
 import { CalendarView } from '@/components/agenda/calendar-view';
 import { FinancialDashboard } from '@/components/financeiro/financial-dashboard';
 import { GoalsPanel } from '@/components/goals/goals-panel';
@@ -24,8 +25,12 @@ function DashboardView() {
   );
 }
 
-function ClientsView() {
-  return <KanbanBoard />;
+function CadastroView() {
+  return <ClientList />;
+}
+
+function CRMView() {
+  return <CRMVisual />;
 }
 
 function AgendaView() {
@@ -73,8 +78,10 @@ export default function Home() {
     switch (currentView) {
       case 'dashboard':
         return <DashboardView />;
-      case 'clients':
-        return <ClientsView />;
+      case 'cadastro':
+        return <CadastroView />;
+      case 'crm':
+        return <CRMView />;
       case 'agenda':
         return <AgendaView />;
       case 'financeiro':
