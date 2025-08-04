@@ -71,7 +71,7 @@ function SessionCard({ session, clientName }: SessionCardProps) {
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Detalhes da Sessão</DialogTitle>
+          <DialogTitle>Detalhes da Sessão - {clientName}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -204,7 +204,7 @@ export function CalendarView() {
           <h2 className="text-2xl font-bold">Agenda</h2>
           <div className="flex items-center gap-2">
             <Button
-              variant={view === 'month' ? 'default' : 'outline'}
+              variant={view === 'month' ?'default' : 'outline'}
               size="sm"
               onClick={() => setView('month')}
             >

@@ -153,7 +153,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-[95vw] lg:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base lg:text-lg">Ações de CRM - {client.name}</DialogTitle>
+            <DialogTitle>Ações de CRM - {client.name}</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 lg:space-y-6">
