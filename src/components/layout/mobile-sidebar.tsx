@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useApp } from '@/contexts/app-context';
+import { useMounted } from '@/hooks/use-mounted';
 import {
   LayoutDashboard,
   Users,
@@ -92,6 +93,7 @@ interface MobileSidebarProps {
 export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const { currentView, setCurrentView, user } = useApp();
   const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
 
   const handleNavigation = (viewId: string) => {
     setCurrentView(viewId);
@@ -166,18 +168,22 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
           <div className="p-3 space-y-1">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-muted-foreground">Tema</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="h-8 w-8 p-0"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-              </Button>
+              {mounted ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="h-8 w-8 p-0"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </Button>
+              ) : (
+                <div className="h-8 w-8" />
+              )}
             </div>
             
             {bottomItems.map((item) => {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useApp } from '@/contexts/app-context';
+import { useMounted } from '@/hooks/use-mounted';
 import {
   LayoutDashboard,
   Users,
@@ -84,6 +85,7 @@ const bottomItems = [
 export function Sidebar() {
   const { currentView, setCurrentView, user } = useApp();
   const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
 
   return (
     <div className="hidden lg:flex h-full w-64 flex-col bg-card border-r">
@@ -146,18 +148,22 @@ export function Sidebar() {
       <div className="p-3 space-y-1">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted-foreground">Tema</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="h-8 w-8 p-0"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
+          {mounted ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="h-8 w-8 p-0"
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
+          ) : (
+            <div className="h-8 w-8" />
+          )}
         </div>
         
         {bottomItems.map((item) => {
