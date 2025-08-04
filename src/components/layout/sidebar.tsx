@@ -86,7 +86,7 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="flex h-full w-64 flex-col bg-card border-r">
+    <div className="hidden lg:flex h-full w-64 flex-col bg-card border-r">
       {/* Header */}
       <div className="p-6">
         <div className="flex items-center gap-2 mb-4">

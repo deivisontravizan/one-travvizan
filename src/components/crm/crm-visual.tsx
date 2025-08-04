@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useApp } from '@/contexts/app-context';
 import { Client } from '@/lib/types';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
@@ -102,19 +103,19 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
               urgency === 'high' ? 'ring-2 ring-red-200' : 
               urgency === 'medium' ? 'ring-1 ring-yellow-200' : ''
             }`}>
-              <CardContent className="p-4">
+              <CardContent className="p-3 lg:p-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm flex-1">{client.name}</h4>
+                    <h4 className="font-medium text-xs lg:text-sm flex-1 truncate">{client.name}</h4>
                     <div className="flex items-center gap-1">
                       {urgency === 'high' && (
                         <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                       )}
                       <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                        <GripVertical className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground hover:text-foreground" />
                       </div>
                       <Eye 
-                        className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer" 
+                        className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground hover:text-foreground cursor-pointer" 
                         onClick={(e) => {
                           e.stopPropagation();
                           setIsOpen(true);
@@ -125,7 +126,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
                   
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Phone className="h-3 w-3" />
-                    {client.whatsapp}
+                    <span className="truncate">{client.whatsapp}</span>
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -150,13 +151,13 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
       </Draggable>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[95vw] lg:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Ações de CRM - {client.name}</DialogTitle>
+            <DialogTitle className="text-base lg:text-lg">Ações de CRM - {client.name}</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4 lg:space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Cliente</label>
                 <p className="text-sm text-muted-foreground">{client.name}</p>
@@ -186,7 +187,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
 
             <div>
               <label className="text-sm font-medium mb-3 block">Mover no Funil de Vendas</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {columns.map((column) => (
                   <Button
                     key={column.id}
@@ -203,7 +204,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
               <Button size="sm" className="flex-1">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 WhatsApp
@@ -269,21 +270,24 @@ export function CRMVisual() {
   }).length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">CRM Visual</h2>
-          <p className="text-muted-foreground">Arraste os cards para mover leads no funil de vendas</p>
+    <div className="space-y-4 lg:space-y-6">
+      <div className="hidden lg:block">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">CRM Visual</h2>
+            <p className="text-muted-foreground">Arraste os cards para mover leads no funil de vendas</p>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Métricas do Funil - Responsivo */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-blue-600" />
               <div>
-                <div className="text-2xl font-bold">{totalClients}</div>
+                <div className="text-xl lg:text-2xl font-bold">{totalClients}</div>
                 <p className="text-xs text-muted-foreground">Total de Leads</p>
               </div>
             </div>
@@ -295,7 +299,7 @@ export function CRMVisual() {
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-green-600" />
               <div>
-                <div className="text-2xl font-bold">{conversionRate.toFixed(0)}%</div>
+                <div className="text-xl lg:text-2xl font-bold">{conversionRate.toFixed(0)}%</div>
                 <p className="text-xs text-muted-foreground">Taxa de Conversão</p>
               </div>
             </div>
@@ -307,7 +311,7 @@ export function CRMVisual() {
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-orange-600" />
               <div>
-                <div className="text-2xl font-bold">{urgentClients}</div>
+                <div className="text-xl lg:text-2xl font-bold">{urgentClients}</div>
                 <p className="text-xs text-muted-foreground">Leads Urgentes</p>
               </div>
             </div>
@@ -319,7 +323,7 @@ export function CRMVisual() {
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-purple-600" />
               <div>
-                <div className="text-2xl font-bold">{getClientsByStatus('cliente-fidelizado').length}</div>
+                <div className="text-xl lg:text-2xl font-bold">{getClientsByStatus('cliente-fidelizado').length}</div>
                 <p className="text-xs text-muted-foreground">Clientes Fidelizados</p>
               </div>
             </div>
@@ -327,8 +331,74 @@ export function CRMVisual() {
         </Card>
       </div>
 
+      {/* Funil de Vendas - Mobile com scroll horizontal */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="lg:hidden">
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex gap-4 pb-4" style={{ width: `${columns.length * 280}px` }}>
+              {columns.map((column) => {
+                const columnClients = getClientsByStatus(column.id as Client['status']);
+                const potentialValue = columnClients.reduce((sum, client) => sum + (client.totalPaid || 500), 0);
+                
+                return (
+                  <div key={column.id} className="w-64 space-y-3">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${column.color}`} />
+                          <CardTitle className="text-sm">{column.title}</CardTitle>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="text-xs">
+                            {columnClients.length} leads
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            R$ {potentialValue.toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                    
+                    <Droppable droppableId={column.id}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={`min-h-[300px] p-2 rounded-lg transition-colors ${
+                            snapshot.isDraggingOver 
+                              ? 'bg-muted/50 ring-2 ring-primary/20' 
+                              : 'bg-transparent'
+                          }`}
+                        >
+                          {columnClients.map((client, index) => (
+                            <ClientCard
+                              key={client.id}
+                              client={client}
+                              onStatusChange={handleStatusChange}
+                              index={index}
+                            />
+                          ))}
+                          {provided.placeholder}
+                          
+                          {columnClients.length === 0 && !snapshot.isDraggingOver && (
+                            <div className="text-center py-8 text-muted-foreground text-sm">
+                              <div className="p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
+                                Arraste leads aqui
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Desktop Grid */}
+        <div className="hidden lg:grid lg:grid-cols-6 gap-4">
           {columns.map((column) => {
             const columnClients = getClientsByStatus(column.id as Client['status']);
             const potentialValue = columnClients.reduce((sum, client) => sum + (client.totalPaid || 500), 0);
@@ -389,13 +459,14 @@ export function CRMVisual() {
         </div>
       </DragDropContext>
 
+      {/* Alertas e Dicas */}
       {urgentClients > 0 && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-orange-600" />
               <div>
-                <p className="font-medium text-orange-800 dark:text-orange-200">
+                <p className="font-medium text-orange-800 dark:text-orange-200 text-sm lg:text-base">
                   Atenção: {urgentClients} leads precisam de follow-up urgente!
                 </p>
                 <p className="text-sm text-orange-600 dark:text-orange-300">
@@ -412,7 +483,7 @@ export function CRMVisual() {
           <div className="flex items-center gap-2">
             <GripVertical className="h-4 w-4 text-blue-600" />
             <div>
-              <p className="font-medium text-blue-800 dark:text-blue-200">
+              <p className="font-medium text-blue-800 dark:text-blue-200 text-sm lg:text-base">
                 💡 Dica: Arraste os cards entre as colunas para mover leads no funil
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-300">

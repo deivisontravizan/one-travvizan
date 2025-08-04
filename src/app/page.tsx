@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
+import { MobileHeader } from '@/components/layout/mobile-sidebar';
 import { OverviewCards } from '@/components/dashboard/overview-cards';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { ClientList } from '@/components/cadastro/client-list';
@@ -14,9 +15,9 @@ import { useApp } from '@/contexts/app-context';
 
 function DashboardView() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+    <div className="space-y-4 lg:space-y-6">
+      <div className="hidden lg:block">
+        <h1 className="text-2xl lg:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">Visão geral do seu negócio</p>
       </div>
       <OverviewCards />
@@ -52,7 +53,9 @@ function IAView() {
 function ProfileView() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Perfil</h2>
+      <div className="hidden lg:block">
+        <h2 className="text-2xl font-bold">Perfil</h2>
+      </div>
       <div className="text-center py-12 text-muted-foreground">
         <p>Configurações de perfil em desenvolvimento</p>
       </div>
@@ -63,7 +66,9 @@ function ProfileView() {
 function SettingsView() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Configurações</h2>
+      <div className="hidden lg:block">
+        <h2 className="text-2xl font-bold">Configurações</h2>
+      </div>
       <div className="text-center py-12 text-muted-foreground">
         <p>Configurações do sistema em desenvolvimento</p>
       </div>
@@ -102,11 +107,14 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">
-          {renderView()}
-        </div>
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <MobileHeader />
+        <main className="flex-1 overflow-auto">
+          <div className="p-4 lg:p-6">
+            {renderView()}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

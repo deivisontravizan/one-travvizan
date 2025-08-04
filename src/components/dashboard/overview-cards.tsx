@@ -49,83 +49,86 @@ export function OverviewCards() {
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Sessões Hoje */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Sessões Hoje</CardTitle>
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{todaySessions.length}</div>
-          <p className="text-xs text-muted-foreground">
-            {todaySessions.length > 0 ? 'Próxima às 14:00' : 'Nenhuma sessão agendada'}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Leads Pendentes */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Leads Pendentes</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{pendingClients.length}</div>
-          <div className="flex items-center gap-2 mt-1">
-            {pendingClients.length > 3 && (
-              <Badge variant="destructive" className="text-xs">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                Urgente
-              </Badge>
-            )}
+    <div className="space-y-4">
+      {/* Cards principais */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {/* Sessões Hoje */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs lg:text-sm font-medium">Sessões Hoje</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl lg:text-2xl font-bold">{todaySessions.length}</div>
             <p className="text-xs text-muted-foreground">
-              Aguardando resposta
+              {todaySessions.length > 0 ? 'Próxima às 14:00' : 'Nenhuma sessão'}
             </p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Faturamento Mensal */}
+        {/* Leads Pendentes */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs lg:text-sm font-medium">Leads Pendentes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl lg:text-2xl font-bold">{pendingClients.length}</div>
+            <div className="flex items-center gap-2 mt-1">
+              {pendingClients.length > 3 && (
+                <Badge variant="destructive" className="text-xs">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Urgente
+                </Badge>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Aguardando resposta
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Faturamento Mensal */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs lg:text-sm font-medium">Faturamento</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl lg:text-2xl font-bold">
+              R$ {monthlyRevenue.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Este mês
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Meta do Mês */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs lg:text-sm font-medium">Meta do Mês</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl lg:text-2xl font-bold">{goalProgress.toFixed(0)}%</div>
+            <div className="w-full bg-muted rounded-full h-2 mt-2">
+              <div 
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${Math.min(goalProgress, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              R$ {currentGoal?.current.toLocaleString('pt-BR')} de R$ {currentGoal?.target.toLocaleString('pt-BR')}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alertas IA - Mobile otimizado */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Faturamento</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            R$ {monthlyRevenue.toLocaleString('pt-BR')}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Este mês
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Meta do Mês */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{goalProgress.toFixed(0)}%</div>
-          <div className="w-full bg-muted rounded-full h-2 mt-2">
-            <div 
-              className="bg-primary h-2 rounded-full transition-all"
-              style={{ width: `${Math.min(goalProgress, 100)}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            R$ {currentGoal?.current.toLocaleString('pt-BR')} de R$ {currentGoal?.target.toLocaleString('pt-BR')}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Alertas IA */}
-      <Card className="md:col-span-2 lg:col-span-4">
         <CardHeader>
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <CardTitle className="text-sm lg:text-base font-medium flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             Alertas Inteligentes
           </CardTitle>

@@ -51,35 +51,37 @@ export function QuickActions() {
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2">
       {/* Ações Rápidas */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Ações Rápidas</CardTitle>
+          <CardTitle className="text-base lg:text-lg">Ações Rápidas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {quickActionButtons.map((button, index) => {
-            const Icon = button.icon;
-            return (
-              <Button
-                key={index}
-                variant={button.variant}
-                className="w-full justify-start gap-3 h-12"
-                onClick={button.action}
-              >
-                <Icon className="h-5 w-5" />
-                {button.label}
-              </Button>
-            );
-          })}
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 lg:gap-3">
+            {quickActionButtons.map((button, index) => {
+              const Icon = button.icon;
+              return (
+                <Button
+                  key={index}
+                  variant={button.variant}
+                  className="justify-start gap-2 lg:gap-3 h-10 lg:h-12 text-xs lg:text-sm"
+                  onClick={button.action}
+                >
+                  <Icon className="h-4 w-4 lg:h-5 lg:w-5" />
+                  <span className="hidden sm:inline lg:inline">{button.label}</span>
+                </Button>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 
       {/* Próximas Sessões */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+          <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+            <Clock className="h-4 w-4 lg:h-5 lg:w-5" />
             Próximas Sessões
           </CardTitle>
         </CardHeader>
@@ -88,9 +90,9 @@ export function QuickActions() {
             <div className="space-y-3">
               {upcomingSessions.map((session) => (
                 <div key={session.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <p className="font-medium">Cliente #{session.clientId}</p>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">Cliente #{session.clientId}</p>
+                    <p className="text-xs text-muted-foreground">
                       {new Date(session.date).toLocaleDateString('pt-BR')} às{' '}
                       {new Date(session.date).toLocaleTimeString('pt-BR', { 
                         hour: '2-digit', 
@@ -98,20 +100,22 @@ export function QuickActions() {
                       })}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">R$ {session.value}</p>
-                    <p className="text-sm text-muted-foreground">{session.duration}h</p>
+                  <div className="text-right ml-2">
+                    <p className="font-medium text-sm">R$ {session.value}</p>
+                    <p className="text-xs text-muted-foreground">{session.duration}h</p>
                   </div>
                 </div>
               ))}
+            
             </div>
           ) : (
             <div className="text-center py-8">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhuma sessão agendada</p>
+              <Users className="h-8 w-8 lg:h-12 lg:w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground text-sm">Nenhuma sessão agendada</p>
               <Button 
                 variant="outline" 
                 className="mt-3"
+                size="sm"
                 onClick={() => setCurrentView('agenda')}
               >
                 Agendar Sessão
