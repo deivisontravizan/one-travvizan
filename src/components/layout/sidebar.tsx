@@ -88,7 +88,10 @@ export function Sidebar() {
   const mounted = useMounted();
 
   const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
+    console.log('Tema atual:', theme);
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    console.log('Mudando para:', newTheme);
+    setTheme(newTheme);
   };
 
   return (
@@ -153,6 +156,7 @@ export function Sidebar() {
             size="sm"
             onClick={toggleTheme}
             className="h-8 w-8 p-0"
+            title={`Mudar para tema ${theme === 'dark' ? 'claro' : 'escuro'}`}
           >
             {mounted && theme === 'dark' ? (
               <Sun className="h-4 w-4" />
