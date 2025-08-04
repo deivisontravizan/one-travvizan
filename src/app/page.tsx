@@ -105,15 +105,23 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <MobileHeader />
-        <main className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6">
-            {renderView()}
-          </div>
-        </main>
+    <div className="min-h-screen bg-background">
+      <div className="flex h-screen">
+        {/* Sidebar Desktop */}
+        <Sidebar />
+        
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Mobile Header */}
+          <MobileHeader />
+          
+          {/* Page Content */}
+          <main className="flex-1 overflow-auto">
+            <div className="p-4 lg:p-6">
+              {renderView()}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

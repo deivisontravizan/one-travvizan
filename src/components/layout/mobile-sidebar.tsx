@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useApp } from '@/contexts/app-context';
 import { useMounted } from '@/hooks/use-mounted';
 import {
@@ -90,7 +90,7 @@ interface MobileSidebarProps {
   onClose: () => void;
 }
 
-export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
+function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const { currentView, setCurrentView, user } = useApp();
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
@@ -105,7 +105,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
       <SheetContent side="left" className="w-80 p-0">
         <div className="flex h-full flex-col bg-card">
           {/* Header */}
-          <div className="p-6">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Building2 className="h-8 w-8 text-primary" />
@@ -132,8 +132,6 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             )}
           </div>
 
-          <Separator />
-
           {/* Navigation */}
           <ScrollArea className="flex-1 px-3">
             <div className="space-y-1 py-4">
@@ -147,7 +145,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 h-12",
-                      isActive && "bg-primary/10 text-primary border-primary/20"
+                      isActive && "bg-primary/10 text-primary"
                     )}
                     onClick={() => handleNavigation(item.id)}
                   >
@@ -162,11 +160,9 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             </div>
           </ScrollArea>
 
-          <Separator />
-
           {/* Bottom Section */}
-          <div className="p-3 space-y-1">
-            <div className="flex items-center justify-between mb-2">
+          <div className="p-3 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-muted-foreground">Tema</span>
               {mounted ? (
                 <Button
@@ -182,26 +178,28 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
                   )}
                 </Button>
               ) : (
-                <div className="h-8 w-8" />
+                <div className="h-8 w-8 bg-muted/20 rounded animate-pulse" />
               )}
             </div>
             
-            {bottomItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.id;
-              
-              return (
-                <Button
-                  key={item.id}
-                  variant={isActive ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-3"
-                  onClick={() => handleNavigation(item.id)}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Button>
-              );
-            })}
+            <div className="space-y-1">
+              {bottomItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentView === item.id;
+                
+                return (
+                  <Button
+                    key={item.id}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="w-full justify-start gap-3"
+                    onClick={() => handleNavigation(item.id)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </SheetContent>
@@ -220,12 +218,14 @@ export function MobileHeader() {
 
   return (
     <>
-      <div className="lg:hidden flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+      {/* Mobile Header - só aparece em telas pequenas */}
+      <header className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(true)}
+            className="h-10 w-10 p-0"
           >
             <Menu className="h-5 w-5" />
           </Button>
@@ -235,8 +235,9 @@ export function MobileHeader() {
         <div className="flex items-center gap-2">
           <Building2 className="h-6 w-6 text-primary" />
         </div>
-      </div>
+      </header>
       
+      {/* Mobile Sidebar */}
       <MobileSidebar 
         isOpen={sidebarOpen} 
         onClose={() => setSidebarOpen(false)} 

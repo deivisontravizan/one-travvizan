@@ -49,17 +49,17 @@ export function OverviewCards() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Cards principais */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {/* Sessões Hoje */}
-        <Card>
+        <Card className="border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs lg:text-sm font-medium">Sessões Hoje</CardTitle>
+            <CardTitle className="text-sm font-medium">Sessões Hoje</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl lg:text-2xl font-bold">{todaySessions.length}</div>
+            <div className="text-2xl font-bold">{todaySessions.length}</div>
             <p className="text-xs text-muted-foreground">
               {todaySessions.length > 0 ? 'Próxima às 14:00' : 'Nenhuma sessão'}
             </p>
@@ -67,13 +67,13 @@ export function OverviewCards() {
         </Card>
 
         {/* Leads Pendentes */}
-        <Card>
+        <Card className="border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs lg:text-sm font-medium">Leads Pendentes</CardTitle>
+            <CardTitle className="text-sm font-medium">Leads Pendentes</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl lg:text-2xl font-bold">{pendingClients.length}</div>
+            <div className="text-2xl font-bold">{pendingClients.length}</div>
             <div className="flex items-center gap-2 mt-1">
               {pendingClients.length > 3 && (
                 <Badge variant="destructive" className="text-xs">
@@ -89,13 +89,13 @@ export function OverviewCards() {
         </Card>
 
         {/* Faturamento Mensal */}
-        <Card>
+        <Card className="border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs lg:text-sm font-medium">Faturamento</CardTitle>
+            <CardTitle className="text-sm font-medium">Faturamento</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl lg:text-2xl font-bold">
+            <div className="text-2xl font-bold">
               R$ {monthlyRevenue.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -105,13 +105,13 @@ export function OverviewCards() {
         </Card>
 
         {/* Meta do Mês */}
-        <Card>
+        <Card className="border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs lg:text-sm font-medium">Meta do Mês</CardTitle>
+            <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl lg:text-2xl font-bold">{goalProgress.toFixed(0)}%</div>
+            <div className="text-2xl font-bold">{goalProgress.toFixed(0)}%</div>
             <div className="w-full bg-muted rounded-full h-2 mt-2">
               <div 
                 className="bg-primary h-2 rounded-full transition-all"
@@ -125,16 +125,16 @@ export function OverviewCards() {
         </Card>
       </div>
 
-      {/* Alertas IA - Mobile otimizado */}
-      <Card>
+      {/* Alertas IA */}
+      <Card className="border border-border">
         <CardHeader>
-          <CardTitle className="text-sm lg:text-base font-medium flex items-center gap-2">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             Alertas Inteligentes
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {alerts.map((alert, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div className="flex items-center gap-3">

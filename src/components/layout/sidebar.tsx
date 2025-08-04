@@ -88,9 +88,9 @@ export function Sidebar() {
   const mounted = useMounted();
 
   return (
-    <div className="hidden lg:flex h-full w-64 flex-col bg-card border-r">
+    <aside className="hidden lg:flex h-full w-64 flex-col bg-card border-r border-border">
       {/* Header */}
-      <div className="p-6">
+      <div className="p-6 border-b border-border">
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="h-8 w-8 text-primary" />
           <div>
@@ -112,8 +112,6 @@ export function Sidebar() {
         )}
       </div>
 
-      <Separator />
-
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3">
         <div className="space-y-1 py-4">
@@ -127,12 +125,12 @@ export function Sidebar() {
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn(
                   "w-full justify-start gap-3 h-12",
-                  isActive && "bg-primary/10 text-primary border-primary/20"
+                  isActive && "bg-primary/10 text-primary"
                 )}
                 onClick={() => setCurrentView(item.id)}
               >
-                <Icon className="h-5 w-5" />
-                <div className="flex flex-col items-start">
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                <div className="flex flex-col items-start text-left">
                   <span className="text-sm font-medium">{item.label}</span>
                   <span className="text-xs text-muted-foreground">{item.description}</span>
                 </div>
@@ -142,11 +140,9 @@ export function Sidebar() {
         </div>
       </ScrollArea>
 
-      <Separator />
-
       {/* Bottom Section */}
-      <div className="p-3 space-y-1">
-        <div className="flex items-center justify-between mb-2">
+      <div className="p-3 border-t border-border">
+        <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-muted-foreground">Tema</span>
           {mounted ? (
             <Button
@@ -162,27 +158,29 @@ export function Sidebar() {
               )}
             </Button>
           ) : (
-            <div className="h-8 w-8" />
+            <div className="h-8 w-8 bg-muted/20 rounded animate-pulse" />
           )}
         </div>
         
-        {bottomItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-          
-          return (
-            <Button
-              key={item.id}
-              variant={isActive ? "secondary" : "ghost"}
-              className="w-full justify-start gap-3"
-              onClick={() => setCurrentView(item.id)}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Button>
-          );
-        })}
+        <div className="space-y-1">
+          {bottomItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentView === item.id;
+            
+            return (
+              <Button
+                key={item.id}
+                variant={isActive ? "secondary" : "ghost"}
+                className="w-full justify-start gap-3 h-10"
+                onClick={() => setCurrentView(item.id)}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-sm">{item.label}</span>
+              </Button>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </aside>
   );
 }
