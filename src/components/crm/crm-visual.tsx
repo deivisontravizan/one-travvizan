@@ -65,10 +65,9 @@ interface ClientCardProps {
   client: Client;
   onStatusChange: (clientId: string, newStatus: Client['status']) => void;
   index: number;
-  isDragging?: boolean;
 }
 
-function ClientCard({ client, onStatusChange, index, isDragging }: ClientCardProps) {
+function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleStatusChange = (newStatus: Client['status']) => {
@@ -157,7 +156,6 @@ function ClientCard({ client, onStatusChange, index, isDragging }: ClientCardPro
           </DialogHeader>
           
           <div className="space-y-6">
-            {/* Informações Rápidas */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Cliente</label>
@@ -179,7 +177,6 @@ function ClientCard({ client, onStatusChange, index, isDragging }: ClientCardPro
               </div>
             </div>
 
-            {/* Observações */}
             <div>
               <label className="text-sm font-medium">Observações</label>
               <p className="text-sm text-muted-foreground mt-1 p-3 bg-muted/50 rounded">
@@ -187,7 +184,6 @@ function ClientCard({ client, onStatusChange, index, isDragging }: ClientCardPro
               </p>
             </div>
 
-            {/* Mover no Funil */}
             <div>
               <label className="text-sm font-medium mb-3 block">Mover no Funil de Vendas</label>
               <div className="grid grid-cols-2 gap-2">
@@ -207,7 +203,6 @@ function ClientCard({ client, onStatusChange, index, isDragging }: ClientCardPro
               </div>
             </div>
 
-            {/* Ações Rápidas */}
             <div className="grid grid-cols-3 gap-2">
               <Button size="sm" className="flex-1">
                 <MessageSquare className="h-4 w-4 mr-2" />
@@ -243,12 +238,10 @@ export function CRMVisual() {
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
-    // Se não há destino, não faz nada
     if (!destination) {
       return;
     }
 
-    // Se o item foi solto na mesma posição, não faz nada
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
@@ -256,7 +249,6 @@ export function CRMVisual() {
       return;
     }
 
-    // Atualiza o status do cliente
     const newStatus = destination.droppableId as Client['status'];
     handleStatusChange(draggableId, newStatus);
   };
@@ -265,7 +257,6 @@ export function CRMVisual() {
     return clients.filter(client => client.status === status);
   };
 
-  // Métricas do funil
   const totalClients = clients.length;
   const conversionRate = totalClients > 0 ? 
     (getClientsByStatus('agendamento-realizado').length / totalClients) * 100 : 0;
@@ -286,7 +277,6 @@ export function CRMVisual() {
         </div>
       </div>
 
-      {/* Métricas do Funil */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4">
@@ -337,7 +327,6 @@ export function CRMVisual() {
         </Card>
       </div>
 
-      {/* Funil de Vendas com Drag and Drop */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {columns.map((column) => {
@@ -400,7 +389,6 @@ export function CRMVisual() {
         </div>
       </DragDropContext>
 
-      {/* Alertas e Dicas */}
       {urgentClients > 0 && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950">
           <CardContent className="p-4">
@@ -419,7 +407,6 @@ export function CRMVisual() {
         </Card>
       )}
 
-      {/* Dica de Uso */}
       <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950">
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
@@ -434,7 +421,7 @@ export function CRMVisual() {
             </div>
           </div>
         </CardContent>
-      </div>
+      </Card>
     </div>
   );
 }
