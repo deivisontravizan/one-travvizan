@@ -87,6 +87,10 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
 
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
   return (
     <aside className="hidden lg:flex h-full w-64 flex-col bg-card border-r border-border">
       {/* Header */}
@@ -144,22 +148,18 @@ export function Sidebar() {
       <div className="p-3 border-t border-border">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-muted-foreground">Tema</span>
-          {mounted ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="h-8 w-8 p-0"
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </Button>
-          ) : (
-            <div className="h-8 w-8 bg-muted/20 rounded animate-pulse" />
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTheme}
+            className="h-8 w-8 p-0"
+          >
+            {mounted && theme === 'dark' ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
         </div>
         
         <div className="space-y-1">
