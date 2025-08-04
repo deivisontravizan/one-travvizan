@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useApp } from '@/contexts/app-context';
-import { useMounted } from '@/hooks/use-mounted';
 import {
   LayoutDashboard,
   Users,
@@ -19,13 +19,10 @@ import {
   Settings,
   User,
   Building2,
-  Moon,
-  Sun,
   Workflow,
   Menu,
   X
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
 
 const menuItems = [
   {
@@ -92,16 +89,10 @@ interface MobileSidebarProps {
 
 function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const { currentView, setCurrentView, user } = useApp();
-  const { theme, setTheme } = useTheme();
-  const mounted = useMounted();
 
   const handleNavigation = (viewId: string) => {
     setCurrentView(viewId);
     onClose();
-  };
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   return (
@@ -166,20 +157,9 @@ function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
 
           {/* Bottom Section */}
           <div className="p-3 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3" suppressHydrationWarning>
               <span className="text-xs text-muted-foreground">Tema</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleTheme}
-                className="h-8 w-8 p-0"
-              >
-                {mounted && theme === 'dark' ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-              </Button>
+              <ThemeToggle />
             </div>
             
             <div className="space-y-1">
