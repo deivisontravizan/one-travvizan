@@ -9,6 +9,7 @@ export default function Home() {
           Hora de transformar ideias em realidade!
         </p>
       </main>
-      </div>
+      <MadeWithLasy />
+    </div>
   );
 }
