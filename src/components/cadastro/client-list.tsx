@@ -182,7 +182,6 @@ function ClientDetailView({ client, onEdit }: ClientDetailViewProps) {
                         </p>
                       </div>
                       <div className="text-left lg:text-right">
-                
                         <p className="font-medium text-sm">R$ {session.value.toLocaleString('pt-BR')}</p>
                         <Badge variant="outline" className="text-xs">
                           {session.status}

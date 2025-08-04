@@ -359,7 +359,7 @@ export function CRMVisual() {
                       </CardHeader>
                     </Card>
                     
-                    <Droppable droppableId={column.id}>
+                    <Droppable droppableId={column.id} isDropDisabled={false}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
@@ -422,7 +422,7 @@ export function CRMVisual() {
                   </CardHeader>
                 </Card>
                 
-                <Droppable droppableId={column.id}>
+                <Droppable droppableId={column.id} isDropDisabled={false}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}

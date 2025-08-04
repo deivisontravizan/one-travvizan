@@ -232,6 +232,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
       {/* Observações e Tags */}
       <Card>
+        
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5" />
