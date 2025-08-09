@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { User, Client, Session, Goal, Transaction } from '@/lib/types';
+import { User, Client, Session, Goal, Transaction, Comanda, TaxSettings } from '@/lib/types';
 
 interface AppContextType {
   user: User | null;
@@ -14,6 +14,10 @@ interface AppContextType {
   setGoals: (goals: Goal[]) => void;
   transactions: Transaction[];
   setTransactions: (transactions: Transaction[]) => void;
+  comandas: Comanda[];
+  setComandasState: (comandas: Comanda[]) => void;
+  taxSettings: TaxSettings | null;
+  setTaxSettings: (settings: TaxSettings) => void;
   currentView: string;
   setCurrentView: (view: string) => void;
 }
@@ -102,6 +106,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   ]);
 
+  const [comandas, setComandasState] = useState<Comanda[]>([]);
+
+  const [taxSettings, setTaxSettings] = useState<TaxSettings | null>({
+    id: '1',
+    tattooerId: '1',
+    creditCardCashRate: 3.5,
+    creditCardInstallmentRate: 4.5,
+    debitCardRate: 2.5,
+    pixRate: 0,
+    updatedAt: new Date()
+  });
+
   const [currentView, setCurrentView] = useState('dashboard');
 
   return (
@@ -116,6 +132,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoals,
       transactions,
       setTransactions,
+      comandas,
+      setComandasState,
+      taxSettings,
+      setTaxSettings,
       currentView,
       setCurrentView
     }}>

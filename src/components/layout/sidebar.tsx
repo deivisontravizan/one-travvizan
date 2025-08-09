@@ -14,11 +14,11 @@ import {
   Calendar,
   DollarSign,
   Target,
-  Brain,
   Settings,
   User,
   Building2,
-  Workflow
+  Workflow,
+  Receipt
 } from 'lucide-react';
 
 const menuItems = [
@@ -47,6 +47,12 @@ const menuItems = [
     description: 'Agendamentos'
   },
   {
+    id: 'comandas',
+    label: 'Comandas',
+    icon: Receipt,
+    description: 'Gestão do caixa'
+  },
+  {
     id: 'financeiro',
     label: 'Financeiro',
     icon: DollarSign,
@@ -57,12 +63,6 @@ const menuItems = [
     label: 'Metas',
     icon: Target,
     description: 'Produtividade'
-  },
-  {
-    id: 'ia',
-    label: 'IA Assistant',
-    icon: Brain,
-    description: 'Inteligência artificial'
   }
 ];
 

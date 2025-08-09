@@ -8,9 +8,10 @@ import { QuickActions } from '@/components/dashboard/quick-actions';
 import { ClientList } from '@/components/cadastro/client-list';
 import { CRMVisual } from '@/components/crm/crm-visual';
 import { CalendarView } from '@/components/agenda/calendar-view';
+import { ComandaView } from '@/components/comandas/comanda-view';
 import { FinancialDashboard } from '@/components/financeiro/financial-dashboard';
 import { GoalsPanel } from '@/components/goals/goals-panel';
-import { AIAssistant } from '@/components/ai/ai-assistant';
+import { TaxSettingsForm } from '@/components/settings/tax-settings';
 import { useApp } from '@/contexts/app-context';
 
 function DashboardView() {
@@ -38,16 +39,16 @@ function AgendaView() {
   return <CalendarView />;
 }
 
+function ComandasView() {
+  return <ComandaView />;
+}
+
 function FinanceiroView() {
   return <FinancialDashboard />;
 }
 
 function MetasView() {
   return <GoalsPanel />;
-}
-
-function IAView() {
-  return <AIAssistant />;
 }
 
 function ProfileView() {
@@ -69,9 +70,7 @@ function SettingsView() {
       <div className="hidden lg:block">
         <h2 className="text-2xl font-bold">Configurações</h2>
       </div>
-      <div className="text-center py-12 text-muted-foreground">
-        <p>Configurações do sistema em desenvolvimento</p>
-      </div>
+      <TaxSettingsForm />
     </div>
   );
 }
@@ -89,12 +88,12 @@ export default function Home() {
         return <CRMView />;
       case 'agenda':
         return <AgendaView />;
+      case 'comandas':
+        return <ComandasView />;
       case 'financeiro':
         return <FinanceiroView />;
       case 'metas':
         return <MetasView />;
-      case 'ia':
-        return <IAView />;
       case 'profile':
         return <ProfileView />;
       case 'settings':
