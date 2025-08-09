@@ -56,7 +56,7 @@ export interface Transaction {
   tattooerId: string;
   sessionId?: string;
   comandaId?: string;
-  paymentMethod?: 'dinheiro' | 'pix' | 'credito' | 'debito';
+  paymentMethod?: 'dinheiro' | 'pix' | 'credito-vista' | 'credito-parcelado' | 'debito';
   grossValue?: number;
   fees?: number;
   installments?: number;
@@ -90,7 +90,7 @@ export interface ComandaClient {
 export interface ComandaPayment {
   id: string;
   comandaClientId: string;
-  method: 'dinheiro' | 'pix' | 'credito' | 'debito';
+  method: 'dinheiro' | 'pix' | 'credito-vista' | 'credito-parcelado' | 'debito';
   grossValue: number;
   netValue: number;
   fees: number;
