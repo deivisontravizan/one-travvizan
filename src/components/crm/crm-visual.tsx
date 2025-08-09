@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import {ScrollArea } from '@/components/ui/scroll-area';
 import { useApp } from '@/contexts/app-context';
 import { Client } from '@/lib/types';
+import { NewLeadDialog, ConvertToClientDialog } from './lead-form';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { toast } from 'sonner';
 import {
   Phone,
   Instagram,
@@ -21,7 +23,9 @@ import {
   Clock,
   Target,
   GripVertical,
-  Loader2
+  Loader2,
+  UserPlus,
+  CheckCircle
 } from 'lucide-react';
 
 const columns = [
@@ -66,10 +70,11 @@ const columns = [
 interface ClientCardProps {
   client: Client;
   onStatusChange: (clientId: string, newStatus: Client['status']) => Promise<void>;
+  onConvertToClient: (clientId: string) => Promise<void>;
   index: number;
 }
 
-function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
+function ClientCard({ client, onStatusChange, onConvertToClient, index }: ClientCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -78,8 +83,22 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
     try {
       await onStatusChange(client.id, newStatus);
       setIsOpen(false);
+      toast.success('Status atualizado com sucesso!');
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleConvertToClient = async () => {
+    setUpdating(true);
+    try {
+      await onConvertToClient(client.id);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Erro ao converter cliente:', error);
     } finally {
       setUpdating(false);
     }
@@ -96,6 +115,8 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
   };
 
   const urgency = getUrgencyLevel();
+  const isLead = client.tags.includes('lead-crm');
+  const canConvert = client.status === 'agendamento-realizado' && isLead;
 
   return (
     <>
@@ -111,11 +132,18 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
             } ${
               urgency === 'high' ? 'ring-2 ring-red-200' : 
               urgency === 'medium' ? 'ring-1 ring-yellow-200' : ''
+            } ${
+              isLead ? 'border-l-4 border-l-blue-500' : ''
             }`}>
               <CardContent className="p-3 lg:p-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-xs lg:text-sm flex-1 truncate">{client.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium text-xs lg:text-sm flex-1 truncate">{client.name}</h4>
+                      {isLead && (
+                        <Badge variant="secondary" className="text-xs">Lead</Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       {urgency === 'high' && (
                         <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
@@ -153,6 +181,23 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
                       🔥 Lead Quente
                     </Badge>
                   )}
+
+                  {canConvert && (
+                    <div className="pt-2">
+                      <Button 
+                        size="sm" 
+                        className="w-full text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConvertToClient();
+                        }}
+                        disabled={updating}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Converter para Cliente
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -163,7 +208,10 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-[95vw] lg:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Ações de CRM - {client.name}</DialogTitle>
+            <DialogTitle>
+              Ações de CRM - {client.name}
+              {isLead && <Badge variant="secondary" className="ml-2">Lead</Badge>}
+            </DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 lg:space-y-6">
@@ -214,6 +262,29 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
               </div>
             </div>
 
+            {canConvert && (
+              <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="font-medium text-green-800 dark:text-green-200">
+                    Pronto para conversão!
+                  </span>
+                </div>
+                <p className="text-sm text-green-600 dark:text-green-300 mb-3">
+                  Este lead chegou ao status "Agendado" e pode ser convertido para cliente.
+                </p>
+                <Button 
+                  onClick={handleConvertToClient}
+                  disabled={updating}
+                  className="w-full"
+                >
+                  {updating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Converter para Cliente
+                </Button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
               <Button size="sm" className="flex-1">
                 <MessageSquare className="h-4 w-4 mr-2" />
@@ -243,6 +314,25 @@ export function CRMVisual() {
       await updateClientData(clientId, { status: newStatus });
     } catch (error) {
       console.error('Erro ao atualizar status do cliente:', error);
+      throw error;
+    }
+  };
+
+  const handleConvertToClient = async (clientId: string) => {
+    try {
+      // Remove a tag de lead e muda status para cliente fidelizado
+      const client = clients.find(c => c.id === clientId);
+      if (client) {
+        const updatedTags = client.tags.filter(tag => tag !== 'lead-crm');
+        await updateClientData(clientId, { 
+          status: 'cliente-fidelizado',
+          tags: updatedTags
+        });
+        toast.success('Lead convertido para cliente com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao converter lead:', error);
+      throw error;
     }
   };
 
@@ -269,6 +359,7 @@ export function CRMVisual() {
   };
 
   const totalClients = clients.length;
+  const totalLeads = clients.filter(c => c.tags.includes('lead-crm')).length;
   const conversionRate = totalClients > 0 ? 
     (getClientsByStatus('agendamento-realizado').length / totalClients) * 100 : 0;
   
@@ -285,9 +376,15 @@ export function CRMVisual() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">CRM Visual</h2>
-            <p className="text-muted-foreground">Arraste os cards para mover leads no funil de vendas</p>
+            <p className="text-muted-foreground">Gerencie leads e arraste os cards para mover no funil de vendas</p>
           </div>
+          <NewLeadDialog />
         </div>
+      </div>
+
+      {/* Botão mobile */}
+      <div className="lg:hidden flex justify-end">
+        <NewLeadDialog />
       </div>
 
       {/* Métricas do Funil - Responsivo */}
@@ -299,6 +396,18 @@ export function CRMVisual() {
               <div>
                 <div className="text-xl lg:text-2xl font-bold">{totalClients}</div>
                 <p className="text-xs text-muted-foreground">Total de Leads</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-green-600" />
+              <div>
+                <div className="text-xl lg:text-2xl font-bold">{totalLeads}</div>
+                <p className="text-xs text-muted-foreground">Leads Ativos</p>
               </div>
             </div>
           </CardContent>
@@ -323,18 +432,6 @@ export function CRMVisual() {
               <div>
                 <div className="text-xl lg:text-2xl font-bold">{urgentClients}</div>
                 <p className="text-xs text-muted-foreground">Leads Urgentes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-purple-600" />
-              <div>
-                <div className="text-xl lg:text-2xl font-bold">{getClientsByStatus('cliente-fidelizado').length}</div>
-                <p className="text-xs text-muted-foreground">Clientes Fidelizados</p>
               </div>
             </div>
           </CardContent>
@@ -385,6 +482,7 @@ export function CRMVisual() {
                               key={client.id}
                               client={client}
                               onStatusChange={handleStatusChange}
+                              onConvertToClient={handleConvertToClient}
                               index={index}
                             />
                           ))}
@@ -442,13 +540,13 @@ export function CRMVisual() {
                           ? 'bg-muted/50 ring-2 ring-primary/20' 
                           : 'bg-transparent'
                       }`}
-                    
                     >
                       {columnClients.map((client, index) => (
                         <ClientCard
                           key={client.id}
                           client={client}
                           onStatusChange={handleStatusChange}
+                          onConvertToClient={handleConvertToClient}
                           index={index}
                         />
                       ))}
@@ -492,13 +590,13 @@ export function CRMVisual() {
       <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950">
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
-            <GripVertical className="h-4 w-4 text-blue-600" />
+            <UserPlus className="h-4 w-4 text-blue-600" />
             <div>
               <p className="font-medium text-blue-800 dark:text-blue-200 text-sm lg:text-base">
-                💡 Dica: Arraste os cards entre as colunas para mover leads no funil
+                💡 Dica: Adicione leads rapidamente e converta-os para clientes quando fecharem negócio
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-300">
-                Use o ícone de arrastar (⋮⋮) ou clique no card para ver mais opções.
+                Leads que chegam ao status "Agendado" podem ser convertidos para clientes com um clique.
               </p>
             </div>
           </div>
