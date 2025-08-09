@@ -5,207 +5,371 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useApp } from '@/contexts/app-context';
+import { Goal } from '@/lib/types';
 import {
   Target,
+  Plus,
   TrendingUp,
   Calendar,
   DollarSign,
   Edit,
-  Check,
-  X
+  Loader2
 } from 'lucide-react';
 
-export function GoalsPanel() {
-  const { goals, setGoals, transactions } = useApp();
-  const [isEditing, setIsEditing] = useState(false);
-  const [newTarget, setNewTarget] = useState('');
+interface GoalFormProps {
+  goal?: Goal;
+  onSave: (goalData: Omit<Goal, 'id'>) => Promise<void>;
+  onCancel: () => void;
+}
 
-  const currentGoal = goals[0];
-  const currentMonth = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  
-  // Calcular receita atual do mês
-  const currentMonthRevenue = transactions
-    .filter(t => {
+function GoalForm({ goal, onSave, onCancel }: GoalFormProps) {
+  const { user, transactions } = useApp();
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    month: goal?.month || new Date().toISOString().slice(0, 7), // YYYY-MM
+    target: goal?.target.toString() || ''
+  });
+
+  const calculateCurrentValue = (month: string) => {
+    const [year, monthNum] = month.split('-');
+    const monthlyTransactions = transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      const now = new Date();
-      return t.type === 'receita' && 
-             transactionDate.getMonth() === now.getMonth() &&
-             transactionDate.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, t) => sum + t.value, 0);
+      return transactionDate.getFullYear() === parseInt(year) &&
+             transactionDate.getMonth() === parseInt(monthNum) - 1 &&
+             t.type === 'receita';
+    });
+    
+    return monthlyTransactions.reduce((sum, t) => sum + t.value, 0);
+  };
 
-  const progressPercentage = currentGoal ? (currentMonthRevenue / currentGoal.target) * 100 : 0;
-  const remainingAmount = currentGoal ? currentGoal.target - currentMonthRevenue : 0;
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-  const currentDay = new Date().getDate();
-  const remainingDays = daysInMonth - currentDay;
-  const dailyTarget = remainingDays > 0 ? remainingAmount / remainingDays : 0;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
 
-  const handleUpdateGoal = () => {
-    if (newTarget && currentGoal) {
-      const updatedGoal = {
-        ...currentGoal,
-        target: parseFloat(newTarget),
-        current: currentMonthRevenue,
-        percentage: (currentMonthRevenue / parseFloat(newTarget)) * 100
+    try {
+      const target = parseFloat(formData.target.replace(',', '.'));
+      const current = calculateCurrentValue(formData.month);
+      const percentage = target > 0 ? (current / target) * 100 : 0;
+
+      const goalData: Omit<Goal, 'id'> = {
+        tattooerId: user?.id || '1',
+        month: formData.month,
+        target,
+        current,
+        percentage
       };
-      
-      setGoals([updatedGoal]);
-      setIsEditing(false);
-      setNewTarget('');
+
+      await onSave(goalData);
+    } catch (error) {
+      console.error('Erro ao salvar meta:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getProgressColor = () => {
-    if (progressPercentage >= 100) return 'bg-green-500';
-    if (progressPercentage >= 75) return 'bg-blue-500';
-    if (progressPercentage >= 50) return 'bg-yellow-500';
-    return 'bg-red-500';
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="month">Mês *</Label>
+        <Input
+          id="month"
+          type="month"
+          value={formData.month}
+          onChange={(e) => setFormData(prev => ({ ...prev, month: e.target.value }))}
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="target">Meta de Faturamento (R$) *</Label>
+        <Input
+          id="target"
+          type="text"
+          value={formData.target}
+          onChange={(e) => setFormData(prev => ({ ...prev, target: e.target.value }))}
+          placeholder="8000,00"
+          required
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          {goal ? 'Atualizar Meta' : 'Criar Meta'}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function GoalsPanel() {
+  const { goals, updateGoal, transactions } = useApp();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentGoal = goals.find(g => g.month === currentMonth);
+
+  // Recalcular progresso das metas baseado nas transações atuais
+  const recalculateGoalProgress = (goal: Goal) => {
+    const [year, monthNum] = goal.month.split('-');
+    const monthlyRevenue = transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getFullYear() === parseInt(year) &&
+             transactionDate.getMonth() === parseInt(monthNum) - 1 &&
+             t.type === 'receita';
+    }).reduce((sum, t) => sum + t.value, 0);
+
+    return {
+      ...goal,
+      current: monthlyRevenue,
+      percentage: goal.target > 0 ? (monthlyRevenue / goal.target) * 100 : 0
+    };
   };
 
-  const getStatusMessage = () => {
-    if (progressPercentage >= 100) return 'Meta alcançada! 🎉';
-    if (progressPercentage >= 75) return 'Muito bem! Você está quase lá!';
-    if (progressPercentage >= 50) return 'No caminho certo, continue assim!';
-    return 'Vamos acelerar para alcançar a meta!';
+  const handleSaveGoal = async (goalData: Omit<Goal, 'id'>) => {
+    try {
+      await updateGoal(goalData);
+      setIsFormOpen(false);
+      setEditingGoal(null);
+    } catch (error) {
+      console.error('Erro ao salvar meta:', error);
+    }
+  };
+
+  const handleEditGoal = (goal: Goal) => {
+    setEditingGoal(goal);
+    setIsFormOpen(true);
+  };
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const formatMonth = (month: string) => {
+    const [year, monthNum] = month.split('-');
+    const date = new Date(parseInt(year), parseInt(monthNum) - 1);
+    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Metas e Produtividade</h2>
-        <Button
-          variant="outline"
-          onClick={() => setIsEditing(!isEditing)}
-        >
-          <Edit className="h-4 w-4 mr-2" />
-          Editar Meta
-        </Button>
+        <div className="hidden lg:block">
+          <h2 className="text-2xl font-bold">Metas</h2>
+          <p className="text-muted-foreground">Acompanhe seu progresso mensal</p>
+        </div>
+        
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Meta
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingGoal ? 'Editar Meta' : 'Criar Nova Meta'}
+              </DialogTitle>
+            </DialogHeader>
+            <GoalForm
+              goal={editingGoal || undefined}
+              onSave={handleSaveGoal}
+              onCancel={() => {
+                setIsFormOpen(false);
+                setEditingGoal(null);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Meta Principal */}
-        <Card className="md:col-span-2">
+      {/* Meta Atual */}
+      {currentGoal && (
+        <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Meta de {currentMonth}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                Meta de {formatMonth(currentGoal.month)}
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditGoal(currentGoal)}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {isEditing ? (
-              <div className="space-y-4">
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Progresso</span>
+                <span className="text-sm font-medium">
+                  {recalculateGoalProgress(currentGoal).percentage.toFixed(1)}%
+                </span>
+              </div>
+              
+              <Progress 
+                value={Math.min(recalculateGoalProgress(currentGoal).percentage, 100)} 
+                className="h-3"
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="target">Nova Meta (R$)</Label>
-                  <Input
-                    id="target"
-                    type="number"
-                    placeholder="Ex: 8000"
-                    value={newTarget}
-                    onChange={(e) => setNewTarget(e.target.value)}
-                  />
+                  <p className="text-sm text-muted-foreground">Atual</p>
+                  <p className="text-lg font-bold text-primary">
+                    {formatCurrency(recalculateGoalProgress(currentGoal).current)}
+                  </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleUpdateGoal}>
-                    <Check className="h-4 w-4 mr-2" />
-                    Salvar
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsEditing(false)}>
-                    <X className="h-4 w-4 mr-2" />
-                    Cancelar
-                  </Button>
+                <div>
+                  <p className="text-sm text-muted-foreground">Meta</p>
+                  <p className="text-lg font-bold">
+                    {formatCurrency(currentGoal.target)}
+                  </p>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="text-center space-y-2">
-                  <div className="text-4xl font-bold">
-                    {progressPercentage.toFixed(0)}%
-                  </div>
-                  <p className="text-muted-foreground">{getStatusMessage()}</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progresso</span>
-                    <span>R$ {currentMonthRevenue.toLocaleString('pt-BR')} / R$ {currentGoal?.target.toLocaleString('pt-BR')}</span>
-                  </div>
-                  <Progress value={Math.min(progressPercentage, 100)} className="h-3" />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">
-                      R$ {currentMonthRevenue.toLocaleString('pt-BR')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Faturado</p>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-orange-600">
-                      R$ {remainingAmount.toLocaleString('pt-BR')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Restante</p>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">
-                      R$ {dailyTarget.toLocaleString('pt-BR')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Meta/dia</p>
-                  </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Estatísticas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Estatísticas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Dias restantes</span>
-              <span className="font-medium">{remainingDays} dias</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Sessões realizadas</span>
-              <span className="font-medium">12 sessões</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Ticket médio</span>
-              <span className="font-medium">R$ 650</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Taxa de conversão</span>
-              <span className="font-medium">68%</span>
+              
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Faltam {formatCurrency(Math.max(0, currentGoal.target - recalculateGoalProgress(currentGoal).current))} para atingir a meta
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Dicas IA */}
+      {/* Histórico de Metas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico de Metas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {goals.length > 0 ? (
+            <div className="space-y-4">
+              {goals
+                .sort((a, b) => b.month.localeCompare(a.month))
+                .map((goal) => {
+                  const updatedGoal = recalculateGoalProgress(goal);
+                  const isCurrentMonth = goal.month === currentMonth;
+                  
+                  return (
+                    <div
+                      key={goal.id}
+                      className={`p-4 border rounded-lg ${
+                        isCurrentMonth ? 'border-primary/20 bg-primary/5' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium">{formatMonth(goal.month)}</h4>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={updatedGoal.percentage >= 100 ? 'default' : 'secondary'}>
+                            {updatedGoal.percentage.toFixed(1)}%
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditGoal(goal)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <Progress value={Math.min(updatedGoal.percentage, 100)} className="mb-3" />
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Atual</p>
+                          <p className="font-medium">{formatCurrency(updatedGoal.current)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Meta</p>
+                          <p className="font-medium">{formatCurrency(goal.target)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Diferença</p>
+                          <p className={`font-medium ${
+                            updatedGoal.current >= goal.target ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {updatedGoal.current >= goal.target ? '+' : ''}
+                            {formatCurrency(updatedGoal.current - goal.target)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="font-medium mb-2">Nenhuma meta definida</h3>
+              <p className="text-sm mb-4">
+                Defina suas metas mensais para acompanhar seu progresso
+              </p>
+              <Button onClick={() => setIsFormOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Primeira Meta
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Estatísticas */}
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Dicas para Alcançar a Meta
-            </CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Média Mensal</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-              <p className="text-sm">💡 Você precisa de mais {Math.ceil(remainingAmount / 650)} sessões para alcançar sua meta</p>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {goals.length > 0 
+                ? formatCurrency(goals.reduce((sum, g) => sum + recalculateGoalProgress(g).current, 0) / goals.length)
+                : 'R$ 0'
+              }
             </div>
-            <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-              <p className="text-sm">🎯 Foque em clientes de ticket alto (R$ 800+)</p>
+            <p className="text-xs text-muted-foreground">Últimos {goals.length} meses</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Taxa de Sucesso</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {goals.length > 0
+                ? Math.round((goals.filter(g => recalculateGoalProgress(g).percentage >= 100).length / goals.length) * 100)
+                : 0
+              }%
             </div>
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
-              <p className="text-sm">📱 Responda leads pendentes para aumentar conversões</p>
+            <p className="text-xs text-muted-foreground">Metas atingidas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Melhor Mês</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {goals.length > 0
+                ? Math.max(...goals.map(g => recalculateGoalProgress(g).percentage)).toFixed(0)
+                : 0
+              }%
             </div>
+            <p className="text-xs text-muted-foreground">Maior progresso</p>
           </CardContent>
         </Card>
       </div>

@@ -14,6 +14,7 @@ export async function getClients() {
     createdAt: new Date(client.created_at),
     updatedAt: new Date(client.updated_at),
     totalPaid: parseFloat(client.total_paid || '0'),
+    references: client.client_references || [],
     sessions: []
   })) || [];
 }
@@ -27,7 +28,7 @@ export async function createClient(client: Omit<Client, 'id' | 'createdAt' | 'up
       whatsapp: client.whatsapp,
       instagram: client.instagram,
       style: client.style,
-      references: client.references,
+      client_references: client.references,
       anamnese: client.anamnese,
       observations: client.observations,
       total_paid: client.totalPaid,
@@ -43,6 +44,7 @@ export async function createClient(client: Omit<Client, 'id' | 'createdAt' | 'up
     createdAt: new Date(data.created_at),
     updatedAt: new Date(data.updated_at),
     totalPaid: parseFloat(data.total_paid || '0'),
+    references: data.client_references || [],
     sessions: []
   };
 }
@@ -55,7 +57,7 @@ export async function updateClient(id: string, updates: Partial<Client>) {
       whatsapp: updates.whatsapp,
       instagram: updates.instagram,
       style: updates.style,
-      references: updates.references,
+      client_references: updates.references,
       anamnese: updates.anamnese,
       observations: updates.observations,
       total_paid: updates.totalPaid,
@@ -73,6 +75,7 @@ export async function updateClient(id: string, updates: Partial<Client>) {
     createdAt: new Date(data.created_at),
     updatedAt: new Date(data.updated_at),
     totalPaid: parseFloat(data.total_paid || '0'),
+    references: data.client_references || [],
     sessions: []
   };
 }

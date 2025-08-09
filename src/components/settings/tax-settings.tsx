@@ -12,11 +12,13 @@ import {
   Smartphone,
   Banknote,
   Calculator,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react';
 
 export function TaxSettingsForm() {
-  const { taxSettings, setTaxSettings, user } = useApp();
+  const { taxSettings, updateTaxSettings, user } = useApp();
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     creditCardCashRate: taxSettings?.creditCardCashRate.toString() || '3.5',
     creditCardInstallmentRate: taxSettings?.creditCardInstallmentRate.toString() || '4.5',
@@ -31,20 +33,27 @@ export function TaxSettingsForm() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     
-    const newSettings: TaxSettings = {
-      id: taxSettings?.id || Date.now().toString(),
-      tattooerId: user?.id || '1',
-      creditCardCashRate: parseFloat(formData.creditCardCashRate) || 0,
-      creditCardInstallmentRate: parseFloat(formData.creditCardInstallmentRate) || 0,
-      debitCardRate: parseFloat(formData.debitCardRate) || 0,
-      pixRate: parseFloat(formData.pixRate) || 0,
-      updatedAt: new Date()
-    };
+    try {
+      const newSettings: TaxSettings = {
+        id: taxSettings?.id || Date.now().toString(),
+        tattooerId: user?.id || '1',
+        creditCardCashRate: parseFloat(formData.creditCardCashRate) || 0,
+        creditCardInstallmentRate: parseFloat(formData.creditCardInstallmentRate) || 0,
+        debitCardRate: parseFloat(formData.debitCardRate) || 0,
+        pixRate: parseFloat(formData.pixRate) || 0,
+        updatedAt: new Date()
+      };
 
-    setTaxSettings(newSettings);
+      await updateTaxSettings(newSettings);
+    } catch (error) {
+      console.error('Erro ao salvar configurações:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -132,7 +141,8 @@ export function TaxSettingsForm() {
             </p>
           </div>
 
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             <Save className="h-4 w-4 mr-2" />
             Salvar Configurações
           </Button>

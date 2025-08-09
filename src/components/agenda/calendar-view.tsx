@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
 import { Session } from '@/lib/types';
 import {
@@ -15,7 +19,8 @@ import {
   Plus,
   User,
   DollarSign,
-  MapPin
+  MapPin,
+  Loader2
 } from 'lucide-react';
 
 const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -131,6 +136,169 @@ function SessionCard({ session, clientName }: SessionCardProps) {
   );
 }
 
+interface NewSessionDialogProps {
+  selectedDate?: Date;
+}
+
+function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
+  const { clients, addSession, user } = useApp();
+  const [isOpen, setIsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    clientId: '',
+    date: selectedDate ? selectedDate.toISOString().slice(0, 16) : '',
+    duration: '2',
+    value: '',
+    description: '',
+    status: 'agendado' as Session['status']
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      const sessionData: Omit<Session, 'id'> = {
+        clientId: formData.clientId,
+        tattooerId: user?.id || '1',
+        date: new Date(formData.date),
+        duration: parseInt(formData.duration),
+        value: parseFloat(formData.value.replace(',', '.')),
+        status: formData.status,
+        description: formData.description,
+        photos: []
+      };
+
+      await addSession(sessionData);
+      setIsOpen(false);
+      setFormData({
+        clientId: '',
+        date: '',
+        duration: '2',
+        value: '',
+        description: '',
+        status: 'agendado'
+      });
+    } catch (error) {
+      console.error('Erro ao criar sessão:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Sessão
+        </Button>
+      </DialogTrigger>
+      
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Agendar Nova Sessão</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="client">Cliente *</Label>
+            <Select value={formData.clientId} onValueChange={(value) => setFormData(prev => ({ ...prev, clientId: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map(client => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name} - {client.style}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="date">Data e Hora *</Label>
+            <Input
+              id="date"
+              type="datetime-local"
+              value={formData.date}
+              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="duration">Duração (horas) *</Label>
+              <Select value={formData.duration} onValueChange={(value) => setFormData(prev => ({ ...prev, duration: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 hora</SelectItem>
+                  <SelectItem value="2">2 horas</SelectItem>
+                  <SelectItem value="3">3 horas</SelectItem>
+                  <SelectItem value="4">4 horas</SelectItem>
+                  <SelectItem value="5">5 horas</SelectItem>
+                  <SelectItem value="6">6 horas</SelectItem>
+                  <SelectItem value="8">8 horas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="value">Valor (R$) *</Label>
+              <Input
+                id="value"
+                type="text"
+                value={formData.value}
+                onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+                placeholder="0,00"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="description">Descrição *</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Ex: Tatuagem fine line no braço"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="status">Status</Label>
+            <Select value={formData.status} onValueChange={(value: Session['status']) => setFormData(prev => ({ ...prev, status: value }))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agendado">Agendado</SelectItem>
+                <SelectItem value="confirmado">Confirmado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Agendar Sessão
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function CalendarView() {
   const { sessions, clients } = useApp();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -227,10 +395,7 @@ export function CalendarView() {
           </div>
         </div>
         
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Sessão
-        </Button>
+        <NewSessionDialog />
       </div>
 
       <Card>

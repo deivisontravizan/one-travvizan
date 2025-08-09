@@ -5,7 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
+import { Transaction } from '@/lib/types';
 import {
   DollarSign,
   TrendingUp,
@@ -16,12 +22,127 @@ import {
   PiggyBank,
   Receipt,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Loader2
 } from 'lucide-react';
 
+interface TransactionFormProps {
+  onSave: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+  onCancel: () => void;
+  type: 'receita' | 'despesa';
+}
+
+function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
+  const { user } = useApp();
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    description: '',
+    value: '',
+    category: '',
+    paymentMethod: 'dinheiro' as Transaction['paymentMethod']
+  });
+
+  const categories = type === 'receita' 
+    ? ['Tatuagem', 'Piercing', 'Produtos', 'Outros']
+    : ['Material', 'Aluguel', 'Marketing', 'Equipamentos', 'Outros'];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      const transactionData: Omit<Transaction, 'id'> = {
+        type,
+        description: formData.description,
+        value: parseFloat(formData.value.replace(',', '.')),
+        date: new Date(),
+        category: formData.category,
+        tattooerId: user?.id || '1',
+        paymentMethod: formData.paymentMethod
+      };
+
+      await onSave(transactionData);
+    } catch (error) {
+      console.error('Erro ao salvar transação:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="description">Descrição *</Label>
+        <Input
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          placeholder={type === 'receita' ? 'Ex: Sessão - João Silva' : 'Ex: Compra de tintas'}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="value">Valor (R$) *</Label>
+          <Input
+            id="value"
+            type="text"
+            value={formData.value}
+            onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+            placeholder="0,00"
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="category">Categoria *</Label>
+          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(category => (
+                <SelectItem key={category} value={category}>{category}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="payment">Forma de Pagamento</Label>
+        <Select value={formData.paymentMethod || 'dinheiro'} onValueChange={(value: any) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="dinheiro">Dinheiro</SelectItem>
+            <SelectItem value="pix">PIX</SelectItem>
+            <SelectItem value="credito">Cartão de Crédito</SelectItem>
+            <SelectItem value="debito">Cartão de Débito</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salvar {type === 'receita' ? 'Receita' : 'Despesa'}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function FinancialDashboard() {
-  const { transactions, sessions } = useApp();
+  const { transactions, sessions, addTransaction } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [isReceitaOpen, setIsReceitaOpen] = useState(false);
+  const [isDespesaOpen, setIsDespesaOpen] = useState(false);
 
   // Calcular métricas financeiras
   const currentMonth = new Date().getMonth();
@@ -58,19 +179,58 @@ export function FinancialDashboard() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const handleSaveTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
+    try {
+      await addTransaction(transactionData);
+      setIsReceitaOpen(false);
+      setIsDespesaOpen(false);
+    } catch (error) {
+      console.error('Erro ao salvar transação:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Financeiro</h2>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Receipt className="h-4 w-4 mr-2" />
-            Nova Despesa
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Receita
-          </Button>
+          <Dialog open={isDespesaOpen} onOpenChange={setIsDespesaOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Receipt className="h-4 w-4 mr-2" />
+                Nova Despesa
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Registrar Nova Despesa</DialogTitle>
+              </DialogHeader>
+              <TransactionForm
+                type="despesa"
+                onSave={handleSaveTransaction}
+                onCancel={() => setIsDespesaOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isReceitaOpen} onOpenChange={setIsReceitaOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Receita
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Registrar Nova Receita</DialogTitle>
+              </DialogHeader>
+              <TransactionForm
+                type="receita"
+                onSave={handleSaveTransaction}
+                onCancel={() => setIsReceitaOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -184,34 +344,23 @@ export function FinancialDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full" />
-                      <span className="text-sm">Material</span>
-                    </div>
-                    <span className="text-sm font-medium">R$ 450</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                      <span className="text-sm">Aluguel</span>
-                    </div>
-                    <span className="text-sm font-medium">R$ 800</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                      <span className="text-sm">Marketing</span>
-                    </div>
-                    <span className="text-sm font-medium">R$ 200</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full" />
-                      <span className="text-sm">Outros</span>
-                    </div>
-                    <span className="text-sm font-medium">R$ 150</span>
-                  </div>
+                  {['Material', 'Aluguel', 'Marketing', 'Outros'].map((category, index) => {
+                    const categoryExpenses = monthlyTransactions
+                      .filter(t => t.type === 'despesa' && t.category === category)
+                      .reduce((sum, t) => sum + t.value, 0);
+                    
+                    const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
+                    
+                    return (
+                      <div key={category} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 ${colors[index]} rounded-full`} />
+                          <span className="text-sm">{category}</span>
+                        </div>
+                        <span className="text-sm font-medium">{formatCurrency(categoryExpenses)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -256,6 +405,13 @@ export function FinancialDashboard() {
                     </div>
                   </div>
                 ))}
+
+                {recentTransactions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma transação registrada</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -282,7 +438,9 @@ export function FinancialDashboard() {
                       <p className="text-xs text-muted-foreground">Sessões Realizadas</p>
                     </div>
                     <div>
-                      <div className="text-lg font-semibold">R$ 650</div>
+                      <div className="text-lg font-semibold">
+                        {completedSessions > 0 ? formatCurrency(monthlyRevenue / completedSessions) : 'R$ 0'}
+                      </div>
                       <p className="text-xs text-muted-foreground">Ticket Médio</p>
                     </div>
                   </div>
@@ -309,7 +467,7 @@ export function FinancialDashboard() {
                     <div className="w-full bg-muted rounded-full h-2">
                       <div 
                         className="bg-primary h-2 rounded-full"
-                        style={{ width: `${(monthlyRevenue / 8000) * 100}%` }}
+                        style={{ width: `${Math.min((monthlyRevenue / 8000) * 100, 100)}%` }}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -321,7 +479,6 @@ export function FinancialDashboard() {
                     <div className="flex justify-between text-sm">
                       <span>Despesas vs Receita</span>
                       <span>{profitMargin.toFixed(1)}%</span>
-                
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Sessões por dia</span>
