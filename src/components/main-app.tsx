@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useApp } from '@/contexts/app-context';
 import { CalendarView } from '@/components/agenda/calendar-view';
 import { FinancialDashboard } from '@/components/financeiro/financial-dashboard';
@@ -97,24 +98,30 @@ export function MainApp() {
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile Header */}
-      <div className="lg:hidden bg-white border-b px-4 py-3 flex items-center justify-between">
+      <div className="lg:hidden bg-background border-b px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">One Travizan</h1>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-        >
-          {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+        </div>
       </div>
 
       <div className="flex">
         {/* Sidebar */}
         <div className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r transition-transform duration-200 ease-in-out lg:transition-none`}>
-          <div className="p-6">
+        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-background border-r transition-transform duration-200 ease-in-out lg:transition-none`}>
+          <div className="p-6 flex items-center justify-between">
             <h1 className="text-2xl font-bold text-primary hidden lg:block">One Travizan</h1>
+            <div className="hidden lg:block">
+              <ThemeToggle />
+            </div>
           </div>
           
           <nav className="px-4 space-y-2">

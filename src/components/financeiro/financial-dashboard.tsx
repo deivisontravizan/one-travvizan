@@ -4,12 +4,10 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useApp } from '@/contexts/app-context';
 import { Transaction } from '@/lib/types';
 import { toast } from 'sonner';
@@ -20,43 +18,86 @@ import {
   Plus,
   Calendar,
   CreditCard,
+  Banknote,
   PiggyBank,
-  Receipt,
-  ArrowUpRight,
-  ArrowDownRight,
+  Calculator,
   Loader2
 } from 'lucide-react';
 
 interface TransactionFormProps {
   onSave: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
   onCancel: () => void;
-  type: 'receita' | 'despesa';
 }
 
-function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
+function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
   const { user } = useApp();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
+    type: 'receita' as Transaction['type'],
     description: '',
     value: '',
     category: '',
-    paymentMethod: 'dinheiro' as Transaction['paymentMethod']
+    paymentMethod: '',
+    installments: '1',
+    grossValue: '',
+    fees: ''
   });
 
-  const categories = type === 'receita' 
-    ? ['Tatuagem', 'Piercing', 'Produtos', 'Outros']
-    : ['Material', 'Aluguel', 'Marketing', 'Equipamentos', 'Outros'];
+  // Taxas padrão de cartão
+  const cardRates = {
+    'credito-vista': 3.5,
+    'credito-parcelado': 4.5,
+    'debito': 2.5,
+    'pix': 0
+  };
+
+  const calculateCardFees = () => {
+    if (!formData.grossValue || !formData.paymentMethod) return;
+    
+    const grossValue = parseFloat(formData.grossValue.replace(',', '.'));
+    if (isNaN(grossValue)) return;
+
+    let rate = 0;
+    switch (formData.paymentMethod) {
+      case 'credito-vista':
+        rate = cardRates['credito-vista'];
+        break;
+      case 'credito-parcelado':
+        rate = cardRates['credito-parcelado'];
+        break;
+      case 'debito':
+        rate = cardRates['debito'];
+        break;
+      case 'pix':
+        rate = cardRates['pix'];
+        break;
+    }
+
+    const fees = (grossValue * rate) / 100;
+    const netValue = grossValue - fees;
+
+    setFormData(prev => ({
+      ...prev,
+      fees: fees.toFixed(2),
+      value: netValue.toFixed(2)
+    }));
+  };
+
+  React.useEffect(() => {
+    if (formData.type === 'receita' && formData.grossValue && formData.paymentMethod) {
+      calculateCardFees();
+    }
+  }, [formData.grossValue, formData.paymentMethod]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validações
     if (!formData.description.trim()) {
       toast.error('Descrição é obrigatória');
       return;
     }
     
-    if (!formData.value.trim()) {
+    if (!formData.value) {
       toast.error('Valor é obrigatório');
       return;
     }
@@ -69,78 +110,199 @@ function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
     setSaving(true);
 
     try {
-      const transactionData: Omit<Transaction, 'id'> = {
-        type,
+      const transaction: Omit<Transaction, 'id'> = {
+        tattooerId: user?.id || '1',
+        type: formData.type,
         description: formData.description,
         value: parseFloat(formData.value.replace(',', '.')),
         date: new Date(),
         category: formData.category,
-        tattooerId: user?.id || '1',
-        paymentMethod: formData.paymentMethod
+        paymentMethod: formData.paymentMethod || undefined,
+        grossValue: formData.grossValue ? parseFloat(formData.grossValue.replace(',', '.')) : undefined,
+        fees: formData.fees ? parseFloat(formData.fees.replace(',', '.')) : undefined,
+        installments: formData.installments ? parseInt(formData.installments) : undefined
       };
 
-      await onSave(transactionData);
-      toast.success(`${type === 'receita' ? 'Receita' : 'Despesa'} registrada com sucesso!`);
+      await onSave(transaction);
+      toast.success('Transação adicionada com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
-      toast.error('Erro ao salvar transação. Tente novamente.');
+      toast.error('Erro ao adicionar transação. Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
 
+  const revenueCategories = [
+    'Tatuagem',
+    'Retoque',
+    'Desenho',
+    'Consultoria',
+    'Produtos',
+    'Outros'
+  ];
+
+  const expenseCategories = [
+    'Material',
+    'Aluguel',
+    'Energia',
+    'Internet',
+    'Marketing',
+    'Transporte',
+    'Alimentação',
+    'Outros'
+  ];
+
+  const paymentMethods = [
+    { value: 'dinheiro', label: 'Dinheiro' },
+    { value: 'pix', label: 'PIX' },
+    { value: 'debito', label: 'Cartão de Débito' },
+    { value: 'credito-vista', label: 'Cartão de Crédito à Vista' },
+    { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado' }
+  ];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label>Tipo de Transação</Label>
+        <Select value={formData.type} onValueChange={(value: Transaction['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="receita">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-green-600" />
+                Receita
+              </div>
+            </SelectItem>
+            <SelectItem value="despesa">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-600" />
+                Despesa
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div>
         <Label htmlFor="description">Descrição *</Label>
         <Input
           id="description"
           value={formData.description}
           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-          placeholder={type === 'receita' ? 'Ex: Sessão - João Silva' : 'Ex: Compra de tintas'}
+          placeholder="Ex: Tatuagem fine line braço"
           required
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {formData.type === 'receita' && (
+        <>
+          <div>
+            <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
+            <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a forma de pagamento" />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentMethods.map(method => (
+                  <SelectItem key={method.value} value={method.value}>
+                    {method.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {formData.paymentMethod && ['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.paymentMethod) && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-3">
+                <Calculator className="h-4 w-4 text-blue-600" />
+                <span className="font-medium text-blue-800 dark:text-blue-200">
+                  Calculadora de Taxas
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="grossValue">Valor Bruto (R$)</Label>
+                  <Input
+                    id="grossValue"
+                    value={formData.grossValue}
+                    onChange={(e) => setFormData(prev => ({ ...prev, grossValue: e.target.value }))}
+                    placeholder="0,00"
+                  />
+                </div>
+                
+                <div>
+                  <Label>Taxa ({cardRates[formData.paymentMethod as keyof typeof cardRates]}%)</Label>
+                  <Input
+                    value={formData.fees}
+                    readOnly
+                    placeholder="0,00"
+                    className="bg-muted"
+                  />
+                </div>
+                
+                <div>
+                  <Label>Valor Líquido</Label>
+                  <Input
+                    value={formData.value}
+                    readOnly
+                    placeholder="0,00"
+                    className="bg-muted font-medium"
+                  />
+                </div>
+              </div>
+
+              {formData.paymentMethod === 'credito-parcelado' && (
+                <div className="mt-4">
+                  <Label htmlFor="installments">Número de Parcelas</Label>
+                  <Select value={formData.installments} onValueChange={(value) => setFormData(prev => ({ ...prev, installments: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => (
+                        <SelectItem key={num} value={num.toString()}>
+                          {num}x
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {(!formData.paymentMethod || !['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.paymentMethod)) && (
         <div>
           <Label htmlFor="value">Valor (R$) *</Label>
           <Input
             id="value"
-            type="text"
             value={formData.value}
             onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
             placeholder="0,00"
             required
           />
         </div>
-
-        <div>
-          <Label htmlFor="category">Categoria *</Label>
-          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map(category => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      )}
 
       <div>
-        <Label htmlFor="payment">Forma de Pagamento</Label>
-        <Select value={formData.paymentMethod || 'dinheiro'} onValueChange={(value: any) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+        <Label htmlFor="category">Categoria *</Label>
+        <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue placeholder="Selecione uma categoria" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="dinheiro">Dinheiro</SelectItem>
-            <SelectItem value="pix">PIX</SelectItem>
-            <SelectItem value="credito">Cartão de Crédito</SelectItem>
-            <SelectItem value="debito">Cartão de Débito</SelectItem>
+            {(formData.type === 'receita' ? revenueCategories : expenseCategories).map(category => (
+              <SelectItem key={category} value={category}>
+                {category}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -148,7 +310,7 @@ function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Salvar {type === 'receita' ? 'Receita' : 'Despesa'}
+          Adicionar Transação
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancelar
@@ -159,41 +321,35 @@ function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
 }
 
 export function FinancialDashboard() {
-  const { transactions, sessions, addTransaction } = useApp();
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
-  const [isReceitaOpen, setIsReceitaOpen] = useState(false);
-  const [isDespesaOpen, setIsDespesaOpen] = useState(false);
+  const { transactions, addTransaction } = useApp();
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Calcular métricas financeiras
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
-  const monthlyTransactions = transactions.filter(t => {
-    const transactionDate = new Date(t.date);
-    return transactionDate.getMonth() === currentMonth && 
-           transactionDate.getFullYear() === currentYear;
-  });
-
-  const monthlyRevenue = monthlyTransactions
-    .filter(t => t.type === 'receita')
+  const monthlyRevenue = transactions
+    .filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === currentMonth && 
+             transactionDate.getFullYear() === currentYear &&
+             t.type === 'receita';
+    })
     .reduce((sum, t) => sum + t.value, 0);
 
-  const monthlyExpenses = monthlyTransactions
-    .filter(t => t.type === 'despesa')
+  const monthlyExpenses = transactions
+    .filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate.getMonth() === currentMonth && 
+             transactionDate.getFullYear() === currentYear &&
+             t.type === 'despesa';
+    })
     .reduce((sum, t) => sum + t.value, 0);
 
   const netProfit = monthlyRevenue - monthlyExpenses;
-  const profitMargin = monthlyRevenue > 0 ? (netProfit / monthlyRevenue) * 100 : 0;
 
-  // Sessões realizadas vs agendadas
-  const completedSessions = sessions.filter(s => s.status === 'realizado').length;
-  const totalSessions = sessions.length;
-  const completionRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
-
-  // Transações recentes
-  const recentTransactions = transactions
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+  const totalCardFees = transactions
+    .filter(t => t.fees && t.type === 'receita')
+    .reduce((sum, t) => sum + (t.fees || 0), 0);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -202,8 +358,7 @@ export function FinancialDashboard() {
   const handleSaveTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
     try {
       await addTransaction(transactionData);
-      setIsReceitaOpen(false);
-      setIsDespesaOpen(false);
+      setIsFormOpen(false);
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
       throw error;
@@ -213,50 +368,32 @@ export function FinancialDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Financeiro</h2>
-        <div className="flex gap-2">
-          <Dialog open={isDespesaOpen} onOpenChange={setIsDespesaOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Receipt className="h-4 w-4 mr-2" />
-                Nova Despesa
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Registrar Nova Despesa</DialogTitle>
-              </DialogHeader>
-              <TransactionForm
-                type="despesa"
-                onSave={handleSaveTransaction}
-                onCancel={() => setIsDespesaOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isReceitaOpen} onOpenChange={setIsReceitaOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Receita
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Registrar Nova Receita</DialogTitle>
-              </DialogHeader>
-              <TransactionForm
-                type="receita"
-                onSave={handleSaveTransaction}
-                onCancel={() => setIsReceitaOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
+        <div>
+          <h2 className="text-2xl font-bold">Financeiro</h2>
+          <p className="text-muted-foreground">Controle suas receitas e despesas</p>
         </div>
+        
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Transação
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Adicionar Transação</DialogTitle>
+            </DialogHeader>
+            <TransactionForm
+              onSave={handleSaveTransaction}
+              onCancel={() => setIsFormOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Cards de Métricas */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Métricas Financeiras */}
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
@@ -267,14 +404,14 @@ export function FinancialDashboard() {
               {formatCurrency(monthlyRevenue)}
             </div>
             <p className="text-xs text-muted-foreground">
-              +12% em relação ao mês anterior
+              {transactions.filter(t => t.type === 'receita').length} transações
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+            <CardTitle className="text-sm font-medium">Despesas Mensais</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
@@ -282,7 +419,7 @@ export function FinancialDashboard() {
               {formatCurrency(monthlyExpenses)}
             </div>
             <p className="text-xs text-muted-foreground">
-              -5% em relação ao mês anterior
+              {transactions.filter(t => t.type === 'despesa').length} transações
             </p>
           </CardContent>
         </Card>
@@ -290,230 +427,107 @@ export function FinancialDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Lucro Líquido</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <PiggyBank className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrency(netProfit)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Margem: {profitMargin.toFixed(1)}%
+              Receitas - Despesas
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Conclusão</CardTitle>
-            <Calendar className="h-4 w-4 text-purple-600" />
+            <CardTitle className="text-sm font-medium">Taxas de Cartão</CardTitle>
+            <CreditCard className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
-              {completionRate.toFixed(0)}%
+            <div className="text-2xl font-bold text-orange-600">
+              {formatCurrency(totalCardFees)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {completedSessions} de {totalSessions} sessões
+              Total em taxas pagas
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="transactions">Transações</TabsTrigger>
-          <TabsTrigger value="reports">Relatórios</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Fluxo de Caixa */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Fluxo de Caixa - Dezembro</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Receitas</span>
-                    <span className="font-medium text-green-600">
-                      {formatCurrency(monthlyRevenue)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Despesas</span>
-                    <span className="font-medium text-red-600">
-                      -{formatCurrency(monthlyExpenses)}
-                    </span>
-                  </div>
-                  <div className="border-t pt-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Saldo</span>
-                      <span className={`font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(netProfit)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Categorias de Despesa */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Despesas por Categoria</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {['Material', 'Aluguel', 'Marketing', 'Outros'].map((category, index) => {
-                    const categoryExpenses = monthlyTransactions
-                      .filter(t => t.type === 'despesa' && t.category === category)
-                      .reduce((sum, t) => sum + t.value, 0);
-                    
-                    const colors = ['bg-red-500', 'bg-blue-500', 'bg-yellow-500', 'bg-green-500'];
-                    
-                    return (
-                      <div key={category} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 ${colors[index]} rounded-full`} />
-                          <span className="text-sm">{category}</span>
-                        </div>
-                        <span className="text-sm font-medium">{formatCurrency(categoryExpenses)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="transactions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Transações Recentes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
+      {/* Lista de Transações */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Transações Recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {transactions.length > 0 ? (
+            <div className="space-y-4">
+              {transactions
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, 10)
+                .map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-full ${
                         transaction.type === 'receita' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
                       }`}>
                         {transaction.type === 'receita' ? (
-                          <ArrowUpRight className="h-4 w-4 text-green-600" />
+                          <TrendingUp className="h-4 w-4 text-green-600" />
                         ) : (
-                          <ArrowDownRight className="h-4 w-4 text-red-600" />
+                          <TrendingDown className="h-4 w-4 text-red-600" />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{transaction.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(transaction.date).toLocaleDateString('pt-BR')} • {transaction.category}
-                        </p>
+                        <p className="font-medium">{transaction.description}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{transaction.category}</span>
+                          {transaction.paymentMethod && (
+                            <>
+                              <span>•</span>
+                              <span className="capitalize">{transaction.paymentMethod.replace('-', ' ')}</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-medium ${
+                      <p className={`font-bold ${
                         transaction.type === 'receita' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {transaction.type === 'receita' ? '+' : '-'}{formatCurrency(transaction.value)}
                       </p>
-                      <Badge variant="outline" className="text-xs">
-                        {transaction.type === 'receita' ? 'Receita' : 'Despesa'}
-                      </Badge>
+                      {transaction.fees && (
+                        <p className="text-xs text-muted-foreground">
+                          Taxa: {formatCurrency(transaction.fees)}
+                        </p>
+                      )}
+                      {transaction.grossValue && (
+                        <p className="text-xs text-muted-foreground">
+                          Bruto: {formatCurrency(transaction.grossValue)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
-
-                {recentTransactions.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhuma transação registrada</p>
-                    <p className="text-sm mt-2">Comece registrando sua primeira receita ou despesa</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="reports" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Relatório Mensal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600">
-                      {formatCurrency(monthlyRevenue)}
-                    </div>
-                    <p className="text-sm text-muted-foreground">Faturamento Total</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <div className="text-lg font-semibold">{completedSessions}</div>
-                      <p className="text-xs text-muted-foreground">Sessões Realizadas</p>
-                    </div>
-                    <div>
-                      <div className="text-lg font-semibold">
-                        {completedSessions > 0 ? formatCurrency(monthlyRevenue / completedSessions) : 'R$ 0'}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Ticket Médio</p>
-                    </div>
-                  </div>
-                  
-                  <Button className="w-full" variant="outline">
-                    <Receipt className="h-4 w-4 mr-2" />
-                    Exportar Relatório
-                  </Button>
-                </div>
-              </CardContent>
-            
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Metas Financeiras</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Meta Mensal</span>
-                      <span>R$ 8.000</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full"
-                        style={{ width: `${Math.min((monthlyRevenue / 8000) * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {((monthlyRevenue / 8000) * 100).toFixed(0)}% da meta alcançada
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Despesas vs Receita</span>
-                      <span>{profitMargin.toFixed(1)}%</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Sessões por dia</span>
-                      <span>2.3 média</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="font-medium mb-2">Nenhuma transação registrada</h3>
+              <p className="text-sm mb-4">
+                Comece adicionando suas receitas e despesas
+              </p>
+              <Button onClick={() => setIsFormOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Primeira Transação
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
