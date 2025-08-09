@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
-import { Session } from '@/lib/types';
+import { Session, Client } from '@/lib/types';
+import { toast } from 'sonner';
 import {
   Calendar,
   ChevronLeft,
@@ -20,7 +21,8 @@ import {
   User,
   DollarSign,
   MapPin,
-  Loader2
+  Loader2,
+  UserPlus
 } from 'lucide-react';
 
 const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -141,10 +143,12 @@ interface NewSessionDialogProps {
 }
 
 function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
-  const { clients, addSession, user } = useApp();
+  const { clients, addSession, addClient, user } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [clientType, setClientType] = useState<'existing' | 'new'>('existing');
+  
+  const [sessionData, setSessionData] = useState({
     clientId: '',
     date: selectedDate ? selectedDate.toISOString().slice(0, 16) : '',
     duration: '2',
@@ -153,41 +157,112 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
     status: 'agendado' as Session['status']
   });
 
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    whatsapp: '',
+    instagram: '',
+    style: 'Fine Line'
+  });
+
+  const resetForm = () => {
+    setSessionData({
+      clientId: '',
+      date: selectedDate ? selectedDate.toISOString().slice(0, 16) : '',
+      duration: '2',
+      value: '',
+      description: '',
+      status: 'agendado'
+    });
+    setNewClientData({
+      name: '',
+      whatsapp: '',
+      instagram: '',
+      style: 'Fine Line'
+    });
+    setClientType('existing');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validações
+    if (!sessionData.date) {
+      toast.error('Data e hora são obrigatórios');
+      return;
+    }
+    
+    if (!sessionData.value) {
+      toast.error('Valor é obrigatório');
+      return;
+    }
+    
+    if (!sessionData.description.trim()) {
+      toast.error('Descrição é obrigatória');
+      return;
+    }
+
+    if (clientType === 'existing' && !sessionData.clientId) {
+      toast.error('Selecione um cliente');
+      return;
+    }
+
+    if (clientType === 'new') {
+      if (!newClientData.name.trim() || !newClientData.whatsapp.trim()) {
+        toast.error('Nome e WhatsApp são obrigatórios para novo cliente');
+        return;
+      }
+    }
+
     setSaving(true);
 
     try {
-      const sessionData: Omit<Session, 'id'> = {
-        clientId: formData.clientId,
+      let clientId = sessionData.clientId;
+
+      // Se for um novo cliente, criar primeiro
+      if (clientType === 'new') {
+        const newClient = await addClient({
+          name: newClientData.name,
+          whatsapp: newClientData.whatsapp,
+          instagram: newClientData.instagram,
+          style: newClientData.style,
+          status: 'novo-contato',
+          totalPaid: 0,
+          references: [],
+          anamnese: {},
+          observations: '',
+          tags: []
+        });
+        clientId = newClient.id;
+      }
+
+      const session: Omit<Session, 'id'> = {
+        clientId,
         tattooerId: user?.id || '1',
-        date: new Date(formData.date),
-        duration: parseInt(formData.duration),
-        value: parseFloat(formData.value.replace(',', '.')),
-        status: formData.status,
-        description: formData.description,
+        date: new Date(sessionData.date),
+        duration: parseInt(sessionData.duration),
+        value: parseFloat(sessionData.value.replace(',', '.')),
+        status: sessionData.status,
+        description: sessionData.description,
         photos: []
       };
 
-      await addSession(sessionData);
+      await addSession(session);
+      toast.success('Sessão agendada com sucesso!');
       setIsOpen(false);
-      setFormData({
-        clientId: '',
-        date: '',
-        duration: '2',
-        value: '',
-        description: '',
-        status: 'agendado'
-      });
+      resetForm();
     } catch (error) {
       console.error('Erro ao criar sessão:', error);
+      toast.error('Erro ao agendar sessão. Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open);
+      if (!open) resetForm();
+    }}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
@@ -195,35 +270,114 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         </Button>
       </DialogTrigger>
       
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Agendar Nova Sessão</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Tipo de Cliente */}
           <div>
-            <Label htmlFor="client">Cliente *</Label>
-            <Select value={formData.clientId} onValueChange={(value) => setFormData(prev => ({ ...prev, clientId: value }))}>
+            <Label>Tipo de Cliente</Label>
+            <Select value={clientType} onValueChange={(value: 'existing' | 'new') => setClientType(value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione um cliente" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {clients.map(client => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name} - {client.style}
-                  </SelectItem>
-                ))}
+                <SelectItem value="existing">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Cliente Existente
+                  </div>
+                </SelectItem>
+                <SelectItem value="new">
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Novo Cliente
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
+          {/* Cliente Existente */}
+          {clientType === 'existing' && (
+            <div>
+              <Label htmlFor="client">Cliente *</Label>
+              <Select value={sessionData.clientId} onValueChange={(value) => setSessionData(prev => ({ ...prev, clientId: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name} - {client.style}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Novo Cliente */}
+          {clientType === 'new' && (
+            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/50">
+              <div className="col-span-2">
+                <Label className="text-sm font-medium">Dados do Novo Cliente</Label>
+              </div>
+              <div>
+                <Label htmlFor="new-client-name">Nome *</Label>
+                <Input
+                  id="new-client-name"
+                  value={newClientData.name}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nome completo"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-client-whatsapp">WhatsApp *</Label>
+                <Input
+                  id="new-client-whatsapp"
+                  value={newClientData.whatsapp}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, whatsapp: e.target.value }))}
+                  placeholder="11999999999"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-client-instagram">Instagram</Label>
+                <Input
+                  id="new-client-instagram"
+                  value={newClientData.instagram}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, instagram: e.target.value }))}
+                  placeholder="@usuario"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new-client-style">Estilo</Label>
+                <Select value={newClientData.style} onValueChange={(value) => setNewClientData(prev => ({ ...prev, style: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['Fine Line', 'Realismo', 'Old School', 'New School', 'Blackwork', 'Aquarela', 'Minimalista', 'Geométrico'].map(style => (
+                      <SelectItem key={style} value={style}>{style}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Dados da Sessão */}
           <div>
             <Label htmlFor="date">Data e Hora *</Label>
             <Input
               id="date"
               type="datetime-local"
-              value={formData.date}
-              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+              value={sessionData.date}
+              onChange={(e) => setSessionData(prev => ({ ...prev, date: e.target.value }))}
               required
             />
           </div>
@@ -231,7 +385,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="duration">Duração (horas) *</Label>
-              <Select value={formData.duration} onValueChange={(value) => setFormData(prev => ({ ...prev, duration: value }))}>
+              <Select value={sessionData.duration} onValueChange={(value) => setSessionData(prev => ({ ...prev, duration: value }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -252,8 +406,8 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
               <Input
                 id="value"
                 type="text"
-                value={formData.value}
-                onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+                value={sessionData.value}
+                onChange={(e) => setSessionData(prev => ({ ...prev, value: e.target.value }))}
                 placeholder="0,00"
                 required
               />
@@ -264,8 +418,8 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
             <Label htmlFor="description">Descrição *</Label>
             <Textarea
               id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              value={sessionData.description}
+              onChange={(e) => setSessionData(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Ex: Tatuagem fine line no braço"
               required
             />
@@ -273,7 +427,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
 
           <div>
             <Label htmlFor="status">Status</Label>
-            <Select value={formData.status} onValueChange={(value: Session['status']) => setFormData(prev => ({ ...prev, status: value }))}>
+            <Select value={sessionData.status} onValueChange={(value: Session['status']) => setSessionData(prev => ({ ...prev, status: value }))}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

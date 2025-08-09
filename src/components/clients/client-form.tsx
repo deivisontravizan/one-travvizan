@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useApp } from '@/contexts/app-context';
 import { Client } from '@/lib/types';
+import { toast } from 'sonner';
 import {
   Plus,
   Upload,
@@ -119,6 +120,23 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação dos campos obrigatórios
+    if (!formData.name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    
+    if (!formData.whatsapp.trim()) {
+      toast.error('WhatsApp é obrigatório');
+      return;
+    }
+    
+    if (!formData.style) {
+      toast.error('Estilo desejado é obrigatório');
+      return;
+    }
+    
     setSaving(true);
     
     try {
@@ -128,8 +146,11 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
         totalPaid: client?.totalPaid || 0,
         sessions: client?.sessions || []
       });
+      
+      toast.success(client ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
+      toast.error('Erro ao salvar cliente. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -155,6 +176,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 placeholder="Ex: Maria Silva"
                 required
+                className={!formData.name.trim() ? 'border-red-300' : ''}
               />
             </div>
             
@@ -166,6 +188,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
                 onChange={(e) => handleInputChange('whatsapp', e.target.value)}
                 placeholder="Ex: 11999999999"
                 required
+                className={!formData.whatsapp.trim() ? 'border-red-300' : ''}
               />
             </div>
             
@@ -182,7 +205,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
             <div>
               <Label htmlFor="style">Estilo Desejado *</Label>
               <Select value={formData.style} onValueChange={(value) => handleInputChange('style', value)}>
-                <SelectTrigger>
+                <SelectTrigger className={!formData.style ? 'border-red-300' : ''}>
                   <SelectValue placeholder="Selecione o estilo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -345,6 +368,7 @@ export function NewClientDialog() {
       setIsOpen(false);
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
+      throw error;
     }
   };
 

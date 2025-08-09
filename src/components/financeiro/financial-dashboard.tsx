@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
 import { Transaction } from '@/lib/types';
+import { toast } from 'sonner';
 import {
   DollarSign,
   TrendingUp,
@@ -48,6 +49,23 @@ function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validações
+    if (!formData.description.trim()) {
+      toast.error('Descrição é obrigatória');
+      return;
+    }
+    
+    if (!formData.value.trim()) {
+      toast.error('Valor é obrigatório');
+      return;
+    }
+    
+    if (!formData.category) {
+      toast.error('Categoria é obrigatória');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -62,8 +80,10 @@ function TransactionForm({ onSave, onCancel, type }: TransactionFormProps) {
       };
 
       await onSave(transactionData);
+      toast.success(`${type === 'receita' ? 'Receita' : 'Despesa'} registrada com sucesso!`);
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
+      toast.error('Erro ao salvar transação. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -186,6 +206,7 @@ export function FinancialDashboard() {
       setIsDespesaOpen(false);
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
+      throw error;
     }
   };
 
@@ -410,6 +431,7 @@ export function FinancialDashboard() {
                   <div className="text-center py-8 text-muted-foreground">
                     <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Nenhuma transação registrada</p>
+                    <p className="text-sm mt-2">Comece registrando sua primeira receita ou despesa</p>
                   </div>
                 )}
               </div>
@@ -451,6 +473,7 @@ export function FinancialDashboard() {
                   </Button>
                 </div>
               </CardContent>
+            
             </Card>
 
             <Card>
