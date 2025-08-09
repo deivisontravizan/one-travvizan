@@ -255,7 +255,7 @@ function ClientDetailView({ client, onEdit }: ClientDetailViewProps) {
 }
 
 export function ClientList() {
-  const { clients, setClients } = useApp();
+  const { clients, addClient, updateClientData } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -267,21 +267,13 @@ export function ClientList() {
     client.style.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSaveClient = (clientData: Partial<Client>) => {
+  const handleSaveClient = async (clientData: Partial<Client>) => {
     if (editingClient) {
       // Editar cliente existente
-      setClients(clients.map(client =>
-        client.id === editingClient.id
-          ? { ...client, ...clientData, updatedAt: new Date() }
-          : client
-      ));
+      await updateClientData(editingClient.id, clientData);
     } else {
       // Criar novo cliente
-      const newClient: Client = {
-        id: Date.now().toString(),
-        ...clientData
-      } as Client;
-      setClients([...clients, newClient]);
+      await addClient(clientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>);
     }
     
     setIsFormOpen(false);
