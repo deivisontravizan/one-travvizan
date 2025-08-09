@@ -29,6 +29,12 @@ const menuItems = [
     description: 'Visão geral'
   },
   {
+    id: 'comandas',
+    label: 'Comandas',
+    icon: Receipt,
+    description: 'Gestão do caixa'
+  },
+  {
     id: 'cadastro',
     label: 'Cadastro',
     icon: UserPlus,
@@ -45,12 +51,6 @@ const menuItems = [
     label: 'Agenda',
     icon: Calendar,
     description: 'Agendamentos'
-  },
-  {
-    id: 'comandas',
-    label: 'Comandas',
-    icon: Receipt,
-    description: 'Gestão do caixa'
   },
   {
     id: 'financeiro',
