@@ -220,7 +220,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
 
       // Se for um novo cliente, criar primeiro
       if (clientType === 'new') {
-        const newClient = await addClient({
+        await addClient({
           name: newClientData.name,
           whatsapp: newClientData.whatsapp,
           instagram: newClientData.instagram,
@@ -232,7 +232,26 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
           observations: '',
           tags: []
         });
-        clientId = newClient.id;
+        
+        // Buscar o cliente recém-criado pelo nome e whatsapp
+        const newClient = clients.find(c => 
+          c.name === newClientData.name && c.whatsapp === newClientData.whatsapp
+        );
+        
+        if (newClient) {
+          clientId = newClient.id;
+        } else {
+          // Se não encontrou, usar o último cliente da lista (mais recente)
+          const sortedClients = [...clients].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          clientId = sortedClients[0]?.id || '';
+        }
+      }
+
+      if (!clientId) {
+        toast.error('Erro ao identificar o cliente. Tente novamente.');
+        return;
       }
 
       const session: Omit<Session, 'id'> = {
