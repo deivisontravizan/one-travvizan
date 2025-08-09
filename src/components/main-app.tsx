@@ -10,6 +10,7 @@ import { CalendarView } from '@/components/agenda/calendar-view';
 import { FinancialDashboard } from '@/components/financeiro/financial-dashboard';
 import { GoalsPanel } from '@/components/goals/goals-panel';
 import { CRMVisual } from '@/components/crm/crm-visual';
+import { ComandaView } from '@/components/comandas/comanda-view';
 import { NewClientDialog } from '@/components/clients/client-form';
 import {
   LayoutDashboard,
@@ -22,7 +23,10 @@ import {
   Clock,
   PiggyBank,
   Menu,
-  X
+  X,
+  Receipt,
+  Settings,
+  User
 } from 'lucide-react';
 
 export function MainApp() {
@@ -80,11 +84,14 @@ export function MainApp() {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'comandas', label: 'Comandas', icon: Receipt },
     { id: 'agenda', label: 'Agenda', icon: Calendar },
     { id: 'clients', label: 'Clientes', icon: Users },
     { id: 'crm', label: 'CRM', icon: UserCheck },
     { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
-    { id: 'metas', label: 'Metas', icon: Target }
+    { id: 'metas', label: 'Metas', icon: Target },
+    { id: 'profile', label: 'Perfil', icon: User },
+    { id: 'settings', label: 'Configurações', icon: Settings }
   ];
 
   return (
@@ -315,6 +322,7 @@ export function MainApp() {
               </div>
             )}
 
+            {activeTab === 'comandas' && <ComandaView />}
             {activeTab === 'agenda' && <CalendarView />}
             {activeTab === 'clients' && (
               <div className="space-y-6">
@@ -362,6 +370,26 @@ export function MainApp() {
             {activeTab === 'crm' && <CRMVisual />}
             {activeTab === 'financeiro' && <FinancialDashboard />}
             {activeTab === 'metas' && <GoalsPanel />}
+            {activeTab === 'profile' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold">Perfil</h2>
+                <Card>
+                  <CardContent className="p-6">
+                    <p className="text-muted-foreground">Perfil em desenvolvimento...</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold">Configurações</h2>
+                <Card>
+                  <CardContent className="p-6">
+                    <p className="text-muted-foreground">Configurações em desenvolvimento...</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         </div>
       </div>
