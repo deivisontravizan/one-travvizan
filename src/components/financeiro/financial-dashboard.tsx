@@ -201,7 +201,7 @@ function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
         <>
           <div>
             <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
-            <Select value={formData.paymentMethod} onValueChange={(value: Transaction['paymentMethod']) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+            <Select value={formData.paymentMethod || ''} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value as Transaction['paymentMethod'] }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a forma de pagamento" />
               </SelectTrigger>
