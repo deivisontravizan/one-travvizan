@@ -1,25 +1,48 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Client, Session, Goal, Transaction, Comanda, TaxSettings } from '@/lib/types';
+import { 
+  getClients, 
+  createClient, 
+  updateClient,
+  getSessions,
+  createSession,
+  updateSession,
+  getTransactions,
+  createTransaction,
+  getGoals,
+  createOrUpdateGoal,
+  getTaxSettings,
+  createOrUpdateTaxSettings
+} from '@/lib/database';
 
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
   clients: Client[];
   setClients: (clients: Client[]) => void;
+  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => Promise<void>;
+  updateClientData: (id: string, updates: Partial<Client>) => Promise<void>;
   sessions: Session[];
   setSessions: (sessions: Session[]) => void;
+  addSession: (session: Omit<Session, 'id'>) => Promise<void>;
+  updateSessionData: (id: string, updates: Partial<Session>) => Promise<void>;
   goals: Goal[];
   setGoals: (goals: Goal[]) => void;
+  updateGoal: (goal: Omit<Goal, 'id'>) => Promise<void>;
   transactions: Transaction[];
   setTransactions: (transactions: Transaction[]) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
   comandas: Comanda[];
   setComandasState: (comandas: Comanda[]) => void;
   taxSettings: TaxSettings | null;
   setTaxSettings: (settings: TaxSettings) => void;
+  updateTaxSettings: (settings: TaxSettings) => Promise<void>;
   currentView: string;
   setCurrentView: (view: string) => void;
+  loading: boolean;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -34,91 +57,134 @@ export function AppProvider({ children }: { children: ReactNode }) {
     studio: 'Studio Ink'
   });
 
-  const [clients, setClients] = useState<Client[]>([
-    {
-      id: '1',
-      name: 'Maria Santos',
-      whatsapp: '11999999999',
-      instagram: '@maria_santos',
-      style: 'Fine Line',
-      references: [],
-      anamnese: {},
-      observations: 'Cliente interessada em tatuagem delicada no pulso',
-      sessions: [],
-      totalPaid: 0,
-      status: 'novo-contato',
-      tags: ['lead-quente'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      id: '2',
-      name: 'Pedro Costa',
-      whatsapp: '11888888888',
-      instagram: '@pedro_costa',
-      style: 'Realismo',
-      references: [],
-      anamnese: {},
-      observations: 'Quer fazer uma tatuagem do seu cachorro',
-      sessions: [],
-      totalPaid: 800,
-      status: 'em-conversa',
-      tags: ['cliente-fiel'],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ]);
-
-  const [sessions, setSessions] = useState<Session[]>([
-    {
-      id: '1',
-      clientId: '2',
-      tattooerId: '1',
-      date: new Date(2024, 11, 20, 14, 0),
-      duration: 3,
-      value: 800,
-      status: 'agendado',
-      description: 'Tatuagem realismo - cachorro'
-    }
-  ]);
-
-  const [goals, setGoals] = useState<Goal[]>([
-    {
-      id: '1',
-      tattooerId: '1',
-      month: '2024-12',
-      target: 8000,
-      current: 3200,
-      percentage: 40
-    }
-  ]);
-
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: '1',
-      type: 'receita',
-      description: 'Sessão - Pedro Costa',
-      value: 800,
-      date: new Date(),
-      category: 'Tatuagem',
-      tattooerId: '1',
-      sessionId: '1'
-    }
-  ]);
-
+  const [clients, setClients] = useState<Client[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [comandas, setComandasState] = useState<Comanda[]>([]);
-
-  const [taxSettings, setTaxSettings] = useState<TaxSettings | null>({
-    id: '1',
-    tattooerId: '1',
-    creditCardCashRate: 3.5,
-    creditCardInstallmentRate: 4.5,
-    debitCardRate: 2.5,
-    pixRate: 0,
-    updatedAt: new Date()
-  });
-
+  const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+
+  // Carregar dados do banco ao inicializar
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [clientsData, sessionsData, goalsData, transactionsData, taxSettingsData] = await Promise.all([
+        getClients(),
+        getSessions(),
+        getGoals(),
+        getTransactions(),
+        getTaxSettings()
+      ]);
+
+      setClients(clientsData);
+      setSessions(sessionsData);
+      setGoals(goalsData);
+      setTransactions(transactionsData);
+      setTaxSettings(taxSettingsData);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshData = async () => {
+    await loadData();
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Funções para clientes
+  const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => {
+    try {
+      const newClient = await createClient(clientData);
+      setClients(prev => [newClient, ...prev]);
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      throw error;
+    }
+  };
+
+  const updateClientData = async (id: string, updates: Partial<Client>) => {
+    try {
+      const updatedClient = await updateClient(id, updates);
+      setClients(prev => prev.map(client => 
+        client.id === id ? updatedClient : client
+      ));
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
+      throw error;
+    }
+  };
+
+  // Funções para sessões
+  const addSession = async (sessionData: Omit<Session, 'id'>) => {
+    try {
+      const newSession = await createSession(sessionData);
+      setSessions(prev => [...prev, newSession]);
+    } catch (error) {
+      console.error('Erro ao criar sessão:', error);
+      throw error;
+    }
+  };
+
+  const updateSessionData = async (id: string, updates: Partial<Session>) => {
+    try {
+      const updatedSession = await updateSession(id, updates);
+      setSessions(prev => prev.map(session => 
+        session.id === id ? updatedSession : session
+      ));
+    } catch (error) {
+      console.error('Erro ao atualizar sessão:', error);
+      throw error;
+    }
+  };
+
+  // Funções para transações
+  const addTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
+    try {
+      const newTransaction = await createTransaction(transactionData);
+      setTransactions(prev => [newTransaction, ...prev]);
+    } catch (error) {
+      console.error('Erro ao criar transação:', error);
+      throw error;
+    }
+  };
+
+  // Funções para metas
+  const updateGoal = async (goalData: Omit<Goal, 'id'>) => {
+    try {
+      const updatedGoal = await createOrUpdateGoal(goalData);
+      setGoals(prev => {
+        const existingIndex = prev.findIndex(g => g.month === goalData.month);
+        if (existingIndex >= 0) {
+          const newGoals = [...prev];
+          newGoals[existingIndex] = updatedGoal;
+          return newGoals;
+        } else {
+          return [updatedGoal, ...prev];
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar meta:', error);
+      throw error;
+    }
+  };
+
+  // Funções para configurações de taxa
+  const updateTaxSettings = async (settings: TaxSettings) => {
+    try {
+      const updatedSettings = await createOrUpdateTaxSettings(settings);
+      setTaxSettings(updatedSettings);
+    } catch (error) {
+      console.error('Erro ao atualizar configurações de taxa:', error);
+      throw error;
+    }
+  };
 
   return (
     <AppContext.Provider value={{
@@ -126,18 +192,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser,
       clients,
       setClients,
+      addClient,
+      updateClientData,
       sessions,
       setSessions,
+      addSession,
+      updateSessionData,
       goals,
       setGoals,
+      updateGoal,
       transactions,
       setTransactions,
+      addTransaction,
       comandas,
       setComandasState,
       taxSettings,
       setTaxSettings,
+      updateTaxSettings,
       currentView,
-      setCurrentView
+      setCurrentView,
+      loading,
+      refreshData
     }}>
       {children}
     </AppContext.Provider>

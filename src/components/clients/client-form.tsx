@@ -21,7 +21,8 @@ import {
   Instagram,
   Palette,
   FileText,
-  Tag
+  Tag,
+  Loader2
 } from 'lucide-react';
 
 const tattooStyles = [
@@ -63,7 +64,7 @@ const anamneseQuestions = [
 
 interface ClientFormProps {
   client?: Client;
-  onSave: (client: Partial<Client>) => void;
+  onSave: (client: Partial<Client>) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -80,6 +81,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
   });
 
   const [newTag, setNewTag] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -115,16 +117,22 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      ...formData,
-      status: client?.status || 'novo-contato',
-      totalPaid: client?.totalPaid || 0,
-      sessions: client?.sessions || [],
-      createdAt: client?.createdAt || new Date(),
-      updatedAt: new Date()
-    });
+    setSaving(true);
+    
+    try {
+      await onSave({
+        ...formData,
+        status: client?.status || 'novo-contato',
+        totalPaid: client?.totalPaid || 0,
+        sessions: client?.sessions || []
+      });
+    } catch (error) {
+      console.error('Erro ao salvar cliente:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -232,7 +240,6 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
       {/* Observações e Tags */}
       <Card>
-        
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5" />
@@ -316,10 +323,11 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
       {/* Botões de Ação */}
       <div className="flex gap-3">
-        <Button type="submit" className="flex-1">
+        <Button type="submit" className="flex-1" disabled={saving}>
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {client ? 'Atualizar Cliente' : 'Cadastrar Cliente'}
         </Button>
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancelar
         </Button>
       </div>
@@ -328,17 +336,16 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 }
 
 export function NewClientDialog() {
-  const { clients, setClients } = useApp();
+  const { addClient } = useApp();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleSave = (clientData: Partial<Client>) => {
-    const newClient: Client = {
-      id: Date.now().toString(),
-      ...clientData
-    } as Client;
-
-    setClients([...clients, newClient]);
-    setIsOpen(false);
+  const handleSave = async (clientData: Partial<Client>) => {
+    try {
+      await addClient(clientData as Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Erro ao salvar cliente:', error);
+    }
   };
 
   return (

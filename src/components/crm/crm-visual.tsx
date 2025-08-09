@@ -20,7 +20,8 @@ import {
   Users,
   Clock,
   Target,
-  GripVertical
+  GripVertical,
+  Loader2
 } from 'lucide-react';
 
 const columns = [
@@ -64,16 +65,24 @@ const columns = [
 
 interface ClientCardProps {
   client: Client;
-  onStatusChange: (clientId: string, newStatus: Client['status']) => void;
+  onStatusChange: (clientId: string, newStatus: Client['status']) => Promise<void>;
   index: number;
 }
 
 function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
-  const handleStatusChange = (newStatus: Client['status']) => {
-    onStatusChange(client.id, newStatus);
-    setIsOpen(false);
+  const handleStatusChange = async (newStatus: Client['status']) => {
+    setUpdating(true);
+    try {
+      await onStatusChange(client.id, newStatus);
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const getUrgencyLevel = () => {
@@ -111,6 +120,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
                       {urgency === 'high' && (
                         <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                       )}
+                      {updating && <Loader2 className="h-3 w-3 animate-spin" />}
                       <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
                         <GripVertical className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground hover:text-foreground" />
                       </div>
@@ -195,7 +205,7 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
                     size="sm"
                     onClick={() => handleStatusChange(column.id as Client['status'])}
                     className="text-xs justify-start"
-                    disabled={client.status === column.id}
+                    disabled={client.status === column.id || updating}
                   >
                     <div className={`w-2 h-2 rounded-full ${column.color} mr-2`} />
                     {column.title}
@@ -226,17 +236,17 @@ function ClientCard({ client, onStatusChange, index }: ClientCardProps) {
 }
 
 export function CRMVisual() {
-  const { clients, setClients } = useApp();
+  const { clients, updateClientData } = useApp();
 
-  const handleStatusChange = (clientId: string, newStatus: Client['status']) => {
-    setClients(clients.map(client => 
-      client.id === clientId 
-        ? { ...client, status: newStatus, updatedAt: new Date() }
-        : client
-    ));
+  const handleStatusChange = async (clientId: string, newStatus: Client['status']) => {
+    try {
+      await updateClientData(clientId, { status: newStatus });
+    } catch (error) {
+      console.error('Erro ao atualizar status do cliente:', error);
+    }
   };
 
-  const handleDragEnd = (result: DropResult) => {
+  const handleDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) {
@@ -251,7 +261,7 @@ export function CRMVisual() {
     }
 
     const newStatus = destination.droppableId as Client['status'];
-    handleStatusChange(draggableId, newStatus);
+    await handleStatusChange(draggableId, newStatus);
   };
 
   const getClientsByStatus = (status: Client['status']) => {
@@ -432,6 +442,7 @@ export function CRMVisual() {
                           ? 'bg-muted/50 ring-2 ring-primary/20' 
                           : 'bg-transparent'
                       }`}
+                    
                     >
                       {columnClients.map((client, index) => (
                         <ClientCard
