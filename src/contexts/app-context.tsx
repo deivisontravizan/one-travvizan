@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { User, Client, Session, Goal, Transaction, Comanda, TaxSettings } from '@/lib/types';
+import { User, Client, Session, Goal, Transaction, Comanda, ComandaClient, ComandaPayment, TaxSettings } from '@/lib/types';
 import { 
   getClients, 
   createClient, 
@@ -36,6 +36,9 @@ interface AppContextType {
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
   comandas: Comanda[];
   setComandasState: (comandas: Comanda[]) => void;
+  addComanda: (comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addComandaClient: (client: Omit<ComandaClient, 'id' | 'createdAt'>) => Promise<void>;
+  addComandaPayment: (payment: Omit<ComandaPayment, 'id' | 'createdAt'>) => Promise<void>;
   taxSettings: TaxSettings | null;
   setTaxSettings: (settings: TaxSettings) => void;
   updateTaxSettings: (settings: TaxSettings) => Promise<void>;
@@ -155,6 +158,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Funções para comandas
+  const addComanda = async (comandaData: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      // Simular criação de comanda (substituir por função real do database)
+      const newComanda: Comanda = {
+        id: Date.now().toString(),
+        ...comandaData,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      setComandasState(prev => [newComanda, ...prev]);
+    } catch (error) {
+      console.error('Erro ao criar comanda:', error);
+      throw error;
+    }
+  };
+
+  const addComandaClient = async (clientData: Omit<ComandaClient, 'id' | 'createdAt'>) => {
+    try {
+      // Simular criação de cliente da comanda (substituir por função real do database)
+      const newClient: ComandaClient = {
+        id: Date.now().toString(),
+        ...clientData,
+        createdAt: new Date()
+      };
+      
+      setComandasState(prev => prev.map(comanda => 
+        comanda.id === clientData.comandaId 
+          ? { ...comanda, clients: [...comanda.clients, newClient] }
+          : comanda
+      ));
+    } catch (error) {
+      console.error('Erro ao adicionar cliente à comanda:', error);
+      throw error;
+    }
+  };
+
+  const addComandaPayment = async (paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>) => {
+    try {
+      // Simular criação de pagamento (substituir por função real do database)
+      const newPayment: ComandaPayment = {
+        id: Date.now().toString(),
+        ...paymentData,
+        createdAt: new Date()
+      };
+      
+      setComandasState(prev => prev.map(comanda => ({
+        ...comanda,
+        clients: comanda.clients.map(client => 
+          client.id === paymentData.comandaClientId
+            ? { ...client, payment: newPayment, status: 'finalizado' as const }
+            : client
+        )
+      })));
+    } catch (error) {
+      console.error('Erro ao registrar pagamento:', error);
+      throw error;
+    }
+  };
+
   // Funções para metas
   const updateGoal = async (goalData: Omit<Goal, 'id'>) => {
     try {
@@ -206,6 +269,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addTransaction,
       comandas,
       setComandasState,
+      addComanda,
+      addComandaClient,
+      addComandaPayment,
       taxSettings,
       setTaxSettings,
       updateTaxSettings,
