@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { User, Client, Session, Goal, Transaction, Comanda, ComandaClient, ComandaPayment, TaxSettings } from '@/lib/types';
+import { User, Client, Session, Goal, Transaction, Comanda, ComandaClient, ComandaPayment, TaxSettings, ClientWeekMovement } from '@/lib/types';
+import { getCurrentWeekPeriod, getISOWeek, getISOWeekYear } from '@/lib/week-utils';
 import { 
   getClients, 
   createClient, 
@@ -24,6 +25,7 @@ interface AppContextType {
   setClients: (clients: Client[]) => void;
   addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => Promise<void>;
   updateClientData: (id: string, updates: Partial<Client>) => Promise<void>;
+  updateClientStatus: (id: string, newStatus: Client['status']) => Promise<void>;
   sessions: Session[];
   setSessions: (sessions: Session[]) => void;
   addSession: (session: Omit<Session, 'id'>) => Promise<void>;
@@ -46,6 +48,9 @@ interface AppContextType {
   setCurrentView: (view: string) => void;
   loading: boolean;
   refreshData: () => Promise<void>;
+  // Funções para movimentações semanais
+  getClientsByPeriod: (year: number, month?: number, weekISO?: number) => Client[];
+  addWeekMovement: (clientId: string, newStatus: Client['status'], previousStatus?: Client['status']) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -105,6 +110,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => {
     try {
       const newClient = await createClient(clientData);
+      
+      // Adicionar movimentação inicial
+      await addWeekMovement(newClient.id, newClient.status);
+      
       setClients(prev => [newClient, ...prev]);
     } catch (error) {
       console.error('Erro ao criar cliente:', error);
@@ -120,6 +129,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ));
     } catch (error) {
       console.error('Erro ao atualizar cliente:', error);
+      throw error;
+    }
+  };
+
+  const updateClientStatus = async (id: string, newStatus: Client['status']) => {
+    try {
+      const client = clients.find(c => c.id === id);
+      const previousStatus = client?.status;
+      
+      // Atualizar status do cliente
+      await updateClientData(id, { status: newStatus });
+      
+      // Registrar movimentação semanal
+      await addWeekMovement(id, newStatus, previousStatus);
+      
+    } catch (error) {
+      console.error('Erro ao atualizar status do cliente:', error);
       throw error;
     }
   };
@@ -195,7 +221,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addComandaPayment = async (paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>) => {
+  const addComandaPayment = async (paymentData: Omit<ComandaPay
+
+ment, 'id' | 'createdAt'>) => {
     try {
       // Simular criação de pagamento (substituir por função real do database)
       const newPayment: ComandaPayment = {
@@ -249,6 +277,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Funções para movimentações semanais
+  const getClientsByPeriod = (year: number, month?: number, weekISO?: number): Client[] => {
+    return clients.filter(client => {
+      if (!client.weekMovements || client.weekMovements.length === 0) {
+        // Se não há movimentações, incluir apenas se for criado no período
+        const createdDate = new Date(client.createdAt);
+        const createdYear = getISOWeekYear(createdDate);
+        const createdWeek = getISOWeek(createdDate);
+        const createdMonth = createdDate.getMonth() + 1;
+
+        if (weekISO) {
+          return createdYear === year && createdWeek === weekISO;
+        } else if (month) {
+          return createdYear === year && createdMonth === month;
+        } else {
+          return createdYear === year;
+        }
+      }
+
+      // Verificar se há movimentações no período
+      return client.weekMovements.some(movement => {
+        if (weekISO) {
+          return movement.year === year && movement.weekISO === weekISO;
+        } else if (month) {
+          return movement.year === year && movement.month === month;
+        } else {
+          return movement.year === year;
+        }
+      });
+    });
+  };
+
+  const addWeekMovement = async (clientId: string, newStatus: Client['status'], previousStatus?: Client['status']) => {
+    try {
+      const now = new Date();
+      const movement: ClientWeekMovement = {
+        id: `${clientId}-${Date.now()}`,
+        clientId,
+        year: getISOWeekYear(now),
+        month: now.getMonth() + 1,
+        weekISO: getISOWeek(now),
+        status: newStatus,
+        movedAt: now,
+        previousStatus
+      };
+
+      // Atualizar cliente com nova movimentação
+      setClients(prev => prev.map(client => {
+        if (client.id === clientId) {
+          const weekMovements = client.weekMovements || [];
+          return {
+            ...client,
+            weekMovements: [...weekMovements, movement]
+          };
+        }
+        return client;
+      }));
+
+      // TODO: Salvar no banco de dados
+      console.log('Movimentação registrada:', movement);
+      
+    } catch (error) {
+      console.error('Erro ao registrar movimentação:', error);
+      throw error;
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       user,
@@ -257,6 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setClients,
       addClient,
       updateClientData,
+      updateClientStatus,
       sessions,
       setSessions,
       addSession,
@@ -278,7 +374,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentView,
       setCurrentView,
       loading,
-      refreshData
+      refreshData,
+      getClientsByPeriod,
+      addWeekMovement
     }}>
       {children}
     </AppContext.Provider>

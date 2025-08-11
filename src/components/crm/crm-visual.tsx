@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {ScrollArea } from '@/components/ui/scroll-area';
 import { useApp } from '@/contexts/app-context';
-import { Client } from '@/lib/types';
+import { Client, PeriodMetrics } from '@/lib/types';
 import { NewLeadDialog, ConvertToClientDialog } from './lead-form';
+import { PeriodFilter, PeriodSelection } from './period-filter';
+import { getCurrentWeekPeriod } from '@/lib/week-utils';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { toast } from 'sonner';
 import {
@@ -307,11 +309,50 @@ function ClientCard({ client, onStatusChange, onConvertToClient, index }: Client
 }
 
 export function CRMVisual() {
-  const { clients, updateClientData } = useApp();
+  const { getClientsByPeriod, updateClientStatus } = useApp();
+  
+  // Estado do período selecionado
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodSelection>(() => {
+    const current = getCurrentWeekPeriod();
+    return {
+      type: 'week',
+      year: current.year,
+      month: current.month,
+      weekISO: current.weekISO
+    };
+  });
+
+  // Obter clientes do período selecionado
+  const periodClients = useMemo(() => {
+    return getClientsByPeriod(
+      selectedPeriod.year,
+      selectedPeriod.month,
+      selectedPeriod.weekISO
+    );
+  }, [selectedPeriod, getClientsByPeriod]);
+
+  // Calcular métricas do período
+  const periodMetrics = useMemo((): PeriodMetrics => {
+    const totalLeads = periodClients.length;
+    const leadsInFollowUp = periodClients.filter(c => 
+      ['em-conversa', 'orcamento-enviado'].includes(c.status)
+    ).length;
+    const leadsClosed = periodClients.filter(c => 
+      ['agendamento-realizado', 'cliente-fidelizado'].includes(c.status)
+    ).length;
+    const conversionRate = totalLeads > 0 ? (leadsClosed / totalLeads) * 100 : 0;
+
+    return {
+      totalLeads,
+      leadsInFollowUp,
+      leadsClosed,
+      conversionRate
+    };
+  }, [periodClients]);
 
   const handleStatusChange = async (clientId: string, newStatus: Client['status']) => {
     try {
-      await updateClientData(clientId, { status: newStatus });
+      await updateClientStatus(clientId, newStatus);
     } catch (error) {
       console.error('Erro ao atualizar status do cliente:', error);
       throw error;
@@ -321,13 +362,9 @@ export function CRMVisual() {
   const handleConvertToClient = async (clientId: string) => {
     try {
       // Remove a tag de lead e muda status para cliente fidelizado
-      const client = clients.find(c => c.id === clientId);
+      const client = periodClients.find(c => c.id === clientId);
       if (client) {
-        const updatedTags = client.tags.filter(tag => tag !== 'lead-crm');
-        await updateClientData(clientId, { 
-          status: 'cliente-fidelizado',
-          tags: updatedTags
-        });
+        await updateClientStatus(clientId, 'cliente-fidelizado');
         toast.success('Lead convertido para cliente com sucesso!');
       }
     } catch (error) {
@@ -355,15 +392,10 @@ export function CRMVisual() {
   };
 
   const getClientsByStatus = (status: Client['status']) => {
-    return clients.filter(client => client.status === status);
+    return periodClients.filter(client => client.status === status);
   };
 
-  const totalClients = clients.length;
-  const totalLeads = clients.filter(c => c.tags.includes('lead-crm')).length;
-  const conversionRate = totalClients > 0 ? 
-    (getClientsByStatus('agendamento-realizado').length / totalClients) * 100 : 0;
-  
-  const urgentClients = clients.filter(client => {
+  const urgentClients = periodClients.filter(client => {
     const daysSinceUpdate = Math.floor(
       (new Date().getTime() - client.updatedAt.getTime()) / (1000 * 60 * 60 * 24)
     );
@@ -387,56 +419,12 @@ export function CRMVisual() {
         <NewLeadDialog />
       </div>
 
-      {/* Métricas do Funil - Responsivo */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-600" />
-              <div>
-                <div className="text-xl lg:text-2xl font-bold">{totalClients}</div>
-                <p className="text-xs text-muted-foreground">Total de Leads</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-green-600" />
-              <div>
-                <div className="text-xl lg:text-2xl font-bold">{totalLeads}</div>
-                <p className="text-xs text-muted-foreground">Leads Ativos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-green-600" />
-              <div>
-                <div className="text-xl lg:text-2xl font-bold">{conversionRate.toFixed(0)}%</div>
-                <p className="text-xs text-muted-foreground">Taxa de Conversão</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <div>
-                <div className="text-xl lg:text-2xl font-bold">{urgentClients}</div>
-                <p className="text-xs text-muted-foreground">Leads Urgentes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Filtro de Período */}
+      <PeriodFilter
+        selectedPeriod={selectedPeriod}
+        onPeriodChange={setSelectedPeriod}
+        metrics={periodMetrics}
+      />
 
       {/* Funil de Vendas - Mobile com scroll horizontal */}
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -593,10 +581,10 @@ export function CRMVisual() {
             <UserPlus className="h-4 w-4 text-blue-600" />
             <div>
               <p className="font-medium text-blue-800 dark:text-blue-200 text-sm lg:text-base">
-                💡 Dica: Adicione leads rapidamente e converta-os para clientes quando fecharem negócio
+                💡 Dica: Acompanhe leads por semana e mantenha histórico completo
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-300">
-                Leads que chegam ao status "Agendado" podem ser convertidos para clientes com um clique.
+                Use os filtros de período para navegar entre semanas e analisar performance histórica.
               </p>
             </div>
           </div>

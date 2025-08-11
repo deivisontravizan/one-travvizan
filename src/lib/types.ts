@@ -23,6 +23,19 @@ export interface Client {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  // Dados de movimentação semanal
+  weekMovements?: ClientWeekMovement[];
+}
+
+export interface ClientWeekMovement {
+  id: string;
+  clientId: string;
+  year: number;
+  month: number;
+  weekISO: number;
+  status: Client['status'];
+  movedAt: Date;
+  previousStatus?: Client['status'];
 }
 
 export interface Session {
@@ -107,4 +120,20 @@ export interface TaxSettings {
   debitCardRate: number; // Taxa cartão débito
   pixRate: number; // Taxa PIX
   updatedAt: Date;
+}
+
+export interface WeekPeriod {
+  year: number;
+  month: number;
+  weekISO: number;
+  startDate: Date;
+  endDate: Date;
+  label: string;
+}
+
+export interface PeriodMetrics {
+  totalLeads: number;
+  leadsInFollowUp: number;
+  leadsClosed: number;
+  conversionRate: number;
 }
