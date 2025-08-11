@@ -221,9 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addComandaPayment = async (paymentData: Omit<ComandaPay
-
-ment, 'id' | 'createdAt'>) => {
+  const addComandaPayment = async (paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>) => {
     try {
       // Simular criação de pagamento (substituir por função real do database)
       const newPayment: ComandaPayment = {
