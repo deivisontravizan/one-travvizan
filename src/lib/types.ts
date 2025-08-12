@@ -73,6 +73,28 @@ export interface Transaction {
   grossValue?: number;
   fees?: number;
   installments?: number;
+  // Novos campos para controle automático
+  isAutomatic?: boolean; // Se foi gerada automaticamente da Agenda/Comandas
+  source?: 'agenda' | 'comanda' | 'manual'; // Origem da transação
+}
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  description?: string;
+  tattooerId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FinancialPeriod {
+  year: number;
+  month: number;
+  grossRevenue: number; // Faturamento bruto (Agenda + Comandas)
+  totalExpenses: number; // Total de despesas
+  netProfit: number; // Lucro líquido
+  revenueFromAgenda: number; // Receita da Agenda
+  revenueFromComandas: number; // Receita das Comandas
 }
 
 export interface Comanda {

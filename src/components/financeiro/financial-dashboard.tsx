@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,86 +8,45 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useApp } from '@/contexts/app-context';
-import { Transaction } from '@/lib/types';
+import { Transaction, ExpenseCategory } from '@/lib/types';
+import { PeriodSelector } from './period-selector';
+import { ExpenseCategories } from './expense-categories';
+import { FinancialChart } from './financial-chart';
 import { toast } from 'sonner';
 import {
   DollarSign,
   TrendingUp,
   TrendingDown,
   Plus,
-  Calendar,
-  CreditCard,
-  Banknote,
   PiggyBank,
+  CreditCard,
   Calculator,
-  Loader2
+  Loader2,
+  AlertCircle,
+  Calendar,
+  Receipt
 } from 'lucide-react';
 
-interface TransactionFormProps {
-  onSave: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+interface ExpenseFormProps {
+  categories: ExpenseCategory[];
+  onSave: (expense: Omit<Transaction, 'id'>) => Promise<void>;
   onCancel: () => void;
+  onCreateCategory: (category: Omit<ExpenseCategory, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
 }
 
-function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
+function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: ExpenseFormProps) {
   const { user } = useApp();
   const [saving, setSaving] = useState(false);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [formData, setFormData] = useState({
-    type: 'receita' as Transaction['type'],
     description: '',
     value: '',
     category: '',
-    paymentMethod: '' as Transaction['paymentMethod'] | '',
-    installments: '1',
-    grossValue: '',
-    fees: ''
+    date: new Date().toISOString().slice(0, 10)
   });
-
-  // Taxas padrão de cartão
-  const cardRates = {
-    'credito-vista': 3.5,
-    'credito-parcelado': 4.5,
-    'debito': 2.5,
-    'pix': 0
-  };
-
-  const calculateCardFees = () => {
-    if (!formData.grossValue || !formData.paymentMethod) return;
-    
-    const grossValue = parseFloat(formData.grossValue.replace(',', '.'));
-    if (isNaN(grossValue)) return;
-
-    let rate = 0;
-    switch (formData.paymentMethod) {
-      case 'credito-vista':
-        rate = cardRates['credito-vista'];
-        break;
-      case 'credito-parcelado':
-        rate = cardRates['credito-parcelado'];
-        break;
-      case 'debito':
-        rate = cardRates['debito'];
-        break;
-      case 'pix':
-        rate = cardRates['pix'];
-        break;
-    }
-
-    const fees = (grossValue * rate) / 100;
-    const netValue = grossValue - fees;
-
-    setFormData(prev => ({
-      ...prev,
-      fees: fees.toFixed(2),
-      value: netValue.toFixed(2)
-    }));
-  };
-
-  React.useEffect(() => {
-    if (formData.type === 'receita' && formData.grossValue && formData.paymentMethod) {
-      calculateCardFees();
-    }
-  }, [formData.grossValue, formData.paymentMethod]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,175 +69,63 @@ function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
     setSaving(true);
 
     try {
-      const transaction: Omit<Transaction, 'id'> = {
+      const expense: Omit<Transaction, 'id'> = {
         tattooerId: user?.id || '1',
-        type: formData.type,
+        type: 'despesa',
         description: formData.description,
         value: parseFloat(formData.value.replace(',', '.')),
-        date: new Date(),
+        date: new Date(formData.date),
         category: formData.category,
-        paymentMethod: formData.paymentMethod || undefined,
-        grossValue: formData.grossValue ? parseFloat(formData.grossValue.replace(',', '.')) : undefined,
-        fees: formData.fees ? parseFloat(formData.fees.replace(',', '.')) : undefined,
-        installments: formData.installments ? parseInt(formData.installments) : undefined
+        source: 'manual',
+        isAutomatic: false
       };
 
-      await onSave(transaction);
-      toast.success('Transação adicionada com sucesso!');
+      await onSave(expense);
+      toast.success('Despesa registrada com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar transação:', error);
-      toast.error('Erro ao adicionar transação. Tente novamente.');
+      console.error('Erro ao salvar despesa:', error);
+      toast.error('Erro ao registrar despesa. Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
 
-  const revenueCategories = [
-    'Tatuagem',
-    'Retoque',
-    'Desenho',
-    'Consultoria',
-    'Produtos',
-    'Outros'
-  ];
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast.error('Nome da categoria é obrigatório');
+      return;
+    }
 
-  const expenseCategories = [
-    'Material',
-    'Aluguel',
-    'Energia',
-    'Internet',
-    'Marketing',
-    'Transporte',
-    'Alimentação',
-    'Outros'
-  ];
-
-  const paymentMethods = [
-    { value: 'dinheiro', label: 'Dinheiro' },
-    { value: 'pix', label: 'PIX' },
-    { value: 'debito', label: 'Cartão de Débito' },
-    { value: 'credito-vista', label: 'Cartão de Crédito à Vista' },
-    { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado' }
-  ];
+    try {
+      await onCreateCategory({
+        name: newCategoryName.trim(),
+        tattooerId: user?.id || '1'
+      });
+      
+      setFormData(prev => ({ ...prev, category: newCategoryName.trim() }));
+      setNewCategoryName('');
+      setIsCreatingCategory(false);
+      toast.success('Categoria criada!');
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error);
+      toast.error('Erro ao criar categoria');
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label>Tipo de Transação</Label>
-        <Select value={formData.type} onValueChange={(value: Transaction['type']) => setFormData(prev => ({ ...prev, type: value }))}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="receita">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                Receita
-              </div>
-            </SelectItem>
-            <SelectItem value="despesa">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-600" />
-                Despesa
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <div>
         <Label htmlFor="description">Descrição *</Label>
         <Input
           id="description"
           value={formData.description}
           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-          placeholder="Ex: Tatuagem fine line braço"
+          placeholder="Ex: Compra de material, aluguel do estúdio..."
           required
         />
       </div>
 
-      {formData.type === 'receita' && (
-        <>
-          <div>
-            <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
-            <Select value={formData.paymentMethod || ''} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value as Transaction['paymentMethod'] }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a forma de pagamento" />
-              </SelectTrigger>
-              <SelectContent>
-                {paymentMethods.map(method => (
-                  <SelectItem key={method.value} value={method.value}>
-                    {method.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {formData.paymentMethod && ['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.paymentMethod) && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-2 mb-3">
-                <Calculator className="h-4 w-4 text-blue-600" />
-                <span className="font-medium text-blue-800 dark:text-blue-200">
-                  Calculadora de Taxas
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="grossValue">Valor Bruto (R$)</Label>
-                  <Input
-                    id="grossValue"
-                    value={formData.grossValue}
-                    onChange={(e) => setFormData(prev => ({ ...prev, grossValue: e.target.value }))}
-                    placeholder="0,00"
-                  />
-                </div>
-                
-                <div>
-                  <Label>Taxa ({cardRates[formData.paymentMethod as keyof typeof cardRates]}%)</Label>
-                  <Input
-                    value={formData.fees}
-                    readOnly
-                    placeholder="0,00"
-                    className="bg-muted"
-                  />
-                </div>
-                
-                <div>
-                  <Label>Valor Líquido</Label>
-                  <Input
-                    value={formData.value}
-                    readOnly
-                    placeholder="0,00"
-                    className="bg-muted font-medium"
-                  />
-                </div>
-              </div>
-
-              {formData.paymentMethod === 'credito-parcelado' && (
-                <div className="mt-4">
-                  <Label htmlFor="installments">Número de Parcelas</Label>
-                  <Select value={formData.installments} onValueChange={(value) => setFormData(prev => ({ ...prev, installments: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num}x
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {(!formData.paymentMethod || !['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.paymentMethod)) && (
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="value">Valor (R$) *</Label>
           <Input
@@ -289,28 +136,82 @@ function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
             required
           />
         </div>
-      )}
+
+        <div>
+          <Label htmlFor="date">Data *</Label>
+          <Input
+            id="date"
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+            required
+          />
+        </div>
+      </div>
 
       <div>
         <Label htmlFor="category">Categoria *</Label>
-        <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione uma categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            {(formData.type === 'receita' ? revenueCategories : expenseCategories).map(category => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Selecione uma categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(category => (
+                <SelectItem key={category.id} value={category.name}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Dialog open={isCreatingCategory} onOpenChange={setIsCreatingCategory}>
+            <DialogTrig
+
+ger asChild>
+              <Button type="button" variant="outline" size="sm">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Criar Nova Categoria</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="newCategory">Nome da Categoria</Label>
+                  <Input
+                    id="newCategory"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Ex: Material, Marketing..."
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleCreateCategory} className="flex-1">
+                    Criar Categoria
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsCreatingCategory(false);
+                      setNewCategoryName('');
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Adicionar Transação
+          Registrar Despesa
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancelar
@@ -321,97 +222,237 @@ function TransactionForm({ onSave, onCancel }: TransactionFormProps) {
 }
 
 export function FinancialDashboard() {
-  const { transactions, addTransaction } = useApp();
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const { transactions, addTransaction, sessions, comandas } = useApp();
+  const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([
+    // Categorias padrão
+    { id: '1', name: 'Material', tattooerId: '1', createdAt: new Date(), updatedAt: new Date() },
+    { id: '2', name: 'Aluguel', tattooerId: '1', createdAt: new Date(), updatedAt: new Date() },
+    { id: '3', name: 'Marketing', tattooerId: '1', createdAt: new Date(), updatedAt: new Date() },
+    { id: '4', name: 'Transporte', tattooerId: '1', createdAt: new Date(), updatedAt: new Date() }
+  ]);
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  // Calcular receitas automáticas da Agenda
+  const revenueFromAgenda = useMemo(() => {
+    return sessions
+      .filter(session => {
+        const sessionDate = new Date(session.date);
+        return sessionDate.getFullYear() === selectedYear &&
+               sessionDate.getMonth() + 1 === selectedMonth &&
+               session.status === 'realizado';
+      })
+      .reduce((sum, session) => sum + session.value, 0);
+  }, [sessions, selectedYear, selectedMonth]);
 
-  const monthlyRevenue = transactions
-    .filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear &&
-             t.type === 'receita';
-    })
-    .reduce((sum, t) => sum + t.value, 0);
+  // Calcular receitas automáticas das Comandas
+  const revenueFromComandas = useMemo(() => {
+    return comandas
+      .filter(comanda => {
+        const comandaDate = new Date(comanda.date);
+        return comandaDate.getFullYear() === selectedYear &&
+               comandaDate.getMonth() + 1 === selectedMonth &&
+               comanda.status === 'fechada';
+      })
+      .reduce((sum, comanda) => {
+        return sum + comanda.clients
+          .filter(client => client.payment)
+          .reduce((clientSum, client) => clientSum + (client.payment?.netValue || 0), 0);
+      }, 0);
+  }, [comandas, selectedYear, selectedMonth]);
 
-  const monthlyExpenses = transactions
-    .filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear &&
-             t.type === 'despesa';
-    })
-    .reduce((sum, t) => sum + t.value, 0);
+  // Calcular despesas do período
+  const monthlyExpenses = useMemo(() => {
+    return transactions
+      .filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getFullYear() === selectedYear &&
+               transactionDate.getMonth() + 1 === selectedMonth &&
+               t.type === 'despesa';
+      })
+      .reduce((sum, t) => sum + t.value, 0);
+  }, [transactions, selectedYear, selectedMonth]);
 
-  const netProfit = monthlyRevenue - monthlyExpenses;
-
-  const totalCardFees = transactions
-    .filter(t => t.fees && t.type === 'receita')
-    .reduce((sum, t) => sum + (t.fees || 0), 0);
+  // Totais do período
+  const grossRevenue = revenueFromAgenda + revenueFromComandas;
+  const netProfit = grossRevenue - monthlyExpenses;
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const handleSaveTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
+  const handleSaveExpense = async (expenseData: Omit<Transaction, 'id'>) => {
     try {
-      await addTransaction(transactionData);
-      setIsFormOpen(false);
+      await addTransaction(expenseData);
+      setIsExpenseFormOpen(false);
     } catch (error) {
-      console.error('Erro ao salvar transação:', error);
+      console.error('Erro ao salvar despesa:', error);
       throw error;
     }
   };
+
+  const handleCreateCategory = async (categoryData: Omit<ExpenseCategory, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newCategory: ExpenseCategory = {
+        id: Date.now().toString(),
+        ...categoryData,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      setExpenseCategories(prev => [...prev, newCategory]);
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateCategory = async (id: string, updates: Partial<ExpenseCategory>) => {
+    setExpenseCategories(prev => prev.map(cat => 
+      cat.id === id ? { ...cat, ...updates, updatedAt: new Date() } : cat
+    ));
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    setExpenseCategories(prev => prev.filter(cat => cat.id !== id));
+  };
+
+  // Dados para o gráfico (últimos 12 meses)
+  const chartData = useMemo(() => {
+    const data = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+
+      // Receitas da Agenda
+      const agendaRevenue = sessions
+        .filter(session => {
+          const sessionDate = new Date(session.date);
+          return sessionDate.getFullYear() === year &&
+                 sessionDate.getMonth() + 1 === month &&
+                 session.status === 'realizado';
+        })
+        .reduce((sum, session) => sum + session.value, 0);
+
+      // Receitas das Comandas
+      const comandaRevenue = comandas
+        .filter(comanda => {
+          const comandaDate = new Date(comanda.date);
+          return comandaDate.getFullYear() === year &&
+                 comandaDate.getMonth() + 1 === month &&
+                 comanda.status === 'fechada';
+        })
+        .reduce((sum, comanda) => {
+          return sum + comanda.clients
+            .filter(client => client.payment)
+            .reduce((clientSum, client) => clientSum + (client.payment?.netValue || 0), 0);
+        }, 0);
+
+      // Despesas
+      const expenses = transactions
+        .filter(t => {
+          const transactionDate = new Date(t.date);
+          return transactionDate.getFullYear() === year &&
+                 transactionDate.getMonth() + 1 === month &&
+                 t.type === 'despesa';
+        })
+        .reduce((sum, t) => sum + t.value, 0);
+
+      const grossRev = agendaRevenue + comandaRevenue;
+
+      data.push({
+        year,
+        month,
+        grossRevenue: grossRev,
+        totalExpenses: expenses,
+        netProfit: grossRev - expenses,
+        revenueFromAgenda: agendaRevenue,
+        revenueFromComandas: comandaRevenue
+      });
+    }
+    return data;
+  }, [sessions, comandas, transactions]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Financeiro</h2>
-          <p className="text-muted-foreground">Controle suas receitas e despesas</p>
+          <p className="text-muted-foreground">Acompanhe faturamento e gerencie despesas</p>
         </div>
         
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isExpenseFormOpen} onOpenChange={setIsExpenseFormOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Nova Transação
+              Nova Despesa
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Adicionar Transação</DialogTitle>
+              <DialogTitle>Registrar Despesa</DialogTitle>
             </DialogHeader>
-            <TransactionForm
-              onSave={handleSaveTransaction}
-              onCancel={() => setIsFormOpen(false)}
+            <ExpenseForm
+              categories={expenseCategories}
+              onSave={handleSaveExpense}
+              onCancel={() => setIsExpenseFormOpen(false)}
+              onCreateCategory={handleCreateCategory}
             />
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Seletor de Período */}
+      <PeriodSelector
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        onPeriodChange={(year, month) => {
+          setSelectedYear(year);
+          setSelectedMonth(month);
+        }}
+      />
+
+      {/* Aviso sobre receitas automáticas */}
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-800 dark:text-blue-200 text-sm">
+                💡 Receitas são registradas automaticamente
+              </p>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                O faturamento é calculado automaticamente a partir de sessões realizadas na Agenda e comandas fechadas. 
+                Registre apenas suas despesas aqui.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Métricas Financeiras */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
+            <CardTitle className="text-sm font-medium">Faturamento Bruto</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(monthlyRevenue)}
+              {formatCurrency(grossRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {transactions.filter(t => t.type === 'receita').length} transações
-            </p>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>Agenda: {formatCurrency(revenueFromAgenda)}</p>
+              <p>Comandas: {formatCurrency(revenueFromComandas)}</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Despesas Mensais</CardTitle>
+            <CardTitle className="text-sm font-medium">Despesas Totais</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
@@ -419,7 +460,7 @@ export function FinancialDashboard() {
               {formatCurrency(monthlyExpenses)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {transactions.filter(t => t.type === 'despesa').length} transações
+              {transactions.filter(t => t.type === 'despesa').length} lançamentos
             </p>
           </CardContent>
         </Card>
@@ -434,95 +475,92 @@ export function FinancialDashboard() {
               {formatCurrency(netProfit)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Receitas - Despesas
+              Faturamento - Despesas
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxas de Cartão</CardTitle>
-            <CreditCard className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium">Margem de Lucro</CardTitle>
+            <Calculator className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(totalCardFees)}
+            <div className="text-2xl font-bold text-purple-600">
+              {grossRevenue > 0 ? ((netProfit / grossRevenue) * 100).toFixed(1) : '0.0'}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Total em taxas pagas
+              Lucro / Faturamento
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Lista de Transações */}
+      {/* Gráfico de Evolução */}
+      <FinancialChart data={chartData} selectedYear={selectedYear} />
+
+      {/* Gerenciamento de Categorias */}
+      <ExpenseCategories
+        categories={expenseCategories}
+        onCreateCategory={handleCreateCategory}
+        onUpdateCategory={handleUpdateCategory}
+        onDeleteCategory={handleDeleteCategory}
+      />
+
+      {/* Lista de Despesas Recentes */}
       <Card>
         <CardHeader>
-          <CardTitle>Transações Recentes</CardTitle>
+          <CardTitle>Despesas do Período</CardTitle>
         </CardHeader>
         <CardContent>
-          {transactions.length > 0 ? (
+          {transactions.filter(t => {
+            const transactionDate = new Date(t.date);
+            return transactionDate.getFullYear() === selectedYear &&
+                   transactionDate.getMonth() + 1 === selectedMonth &&
+                   t.type === 'despesa';
+          }).length > 0 ? (
             <div className="space-y-4">
               {transactions
+                .filter(t => {
+                  const transactionDate = new Date(t.date);
+                  return transactionDate.getFullYear() === selectedYear &&
+                         transactionDate.getMonth() + 1 === selectedMonth &&
+                         t.type === 'despesa';
+                })
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, 10)
                 .map((transaction) => (
                   <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${
-                        transaction.type === 'receita' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'
-                      }`}>
-                        {transaction.type === 'receita' ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
-                        )}
+                      <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
+                        <TrendingDown className="h-4 w-4 text-red-600" />
                       </div>
                       <div>
                         <p className="font-medium">{transaction.description}</p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{transaction.category}</span>
-                          {transaction.paymentMethod && (
-                            <>
-                              <span>•</span>
-                              <span className="capitalize">{transaction.paymentMethod.replace('-', ' ')}</span>
-                            </>
-                          )}
+                          <Badge variant="outline">{transaction.category}</Badge>
                           <span>•</span>
                           <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-bold ${
-                        transaction.type === 'receita' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {transaction.type === 'receita' ? '+' : '-'}{formatCurrency(transaction.value)}
+                      <p className="font-bold text-red-600">
+                        -{formatCurrency(transaction.value)}
                       </p>
-                      {transaction.fees && (
-                        <p className="text-xs text-muted-foreground">
-                          Taxa: {formatCurrency(transaction.fees)}
-                        </p>
-                      )}
-                      {transaction.grossValue && (
-                        <p className="text-xs text-muted-foreground">
-                          Bruto: {formatCurrency(transaction.grossValue)}
-                        </p>
-                      )}
                     </div>
                   </div>
                 ))}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="font-medium mb-2">Nenhuma transação registrada</h3>
+              <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="font-medium mb-2">Nenhuma despesa registrada</h3>
               <p className="text-sm mb-4">
-                Comece adicionando suas receitas e despesas
+                Registre suas despesas para acompanhar o lucro líquido
               </p>
-              <Button onClick={() => setIsFormOpen(true)}>
+              <Button onClick={() => setIsExpenseFormOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Primeira Transação
+                Primeira Despesa
               </Button>
             </div>
           )}
