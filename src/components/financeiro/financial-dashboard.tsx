@@ -166,9 +166,7 @@ function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: Expense
           </Select>
           
           <Dialog open={isCreatingCategory} onOpenChange={setIsCreatingCategory}>
-            <DialogTrig
-
-ger asChild>
+            <DialogTrigger asChild>
               <Button type="button" variant="outline" size="sm">
                 <Plus className="h-4 w-4" />
               </Button>
