@@ -163,7 +163,9 @@ export function GoalsPanel() {
       const updatedGoalData = {
         ...goalData,
         current: currentRevenue,
-        percentage
+        percentage,
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       await updateGoal(updatedGoalData);

@@ -90,9 +90,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSessions(sessionsData);
       
       // Garantir que as metas tenham todos os campos obrigatórios
-      const goalsWithDefaults = goalsData.map(goal => ({
-        ...goal,
+      const goalsWithDefaults: Goal[] = goalsData.map(goal => ({
+        id: goal.id || Date.now().toString(),
+        tattooerId: goal.tattooerId || '1',
+        month: goal.month || new Date().toISOString().slice(0, 7),
+        target: goal.target || 0,
+        current: goal.current || 0,
+        percentage: goal.percentage || 0,
         availableDays: goal.availableDays || 22,
+        desiredTicketAverage: goal.desiredTicketAverage,
+        expectedConversion: goal.expectedConversion,
         createdAt: goal.createdAt || new Date(),
         updatedAt: goal.updatedAt || new Date()
       }));
@@ -262,16 +269,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (existingIndex >= 0) {
           const newGoals = [...prev];
           newGoals[existingIndex] = {
-            ...updatedGoal,
-            availableDays: updatedGoal.availableDays || 22,
-            createdAt: updatedGoal.createdAt || new Date(),
+            id: updatedGoal.id || prev[existingIndex].id,
+            tattooerId: updatedGoal.tattooerId || prev[existingIndex].tattooerId,
+            month: updatedGoal.month || prev[existingIndex].month,
+            target: updatedGoal.target || prev[existingIndex].target,
+            current: updatedGoal.current || prev[existingIndex].current,
+            percentage: updatedGoal.percentage || prev[existingIndex].percentage,
+            availableDays: updatedGoal.availableDays || prev[existingIndex].availableDays || 22,
+            desiredTicketAverage: updatedGoal.desiredTicketAverage,
+            expectedConversion: updatedGoal.expectedConversion,
+            createdAt: updatedGoal.createdAt || prev[existingIndex].createdAt || new Date(),
             updatedAt: updatedGoal.updatedAt || new Date()
           };
           return newGoals;
         } else {
           return [{
-            ...updatedGoal,
+            id: updatedGoal.id || Date.now().toString(),
+            tattooerId: updatedGoal.tattooerId || '1',
+            month: updatedGoal.month || new Date().toISOString().slice(0, 7),
+            target: updatedGoal.target || 0,
+            current: updatedGoal.current || 0,
+            percentage: updatedGoal.percentage || 0,
             availableDays: updatedGoal.availableDays || 22,
+            desiredTicketAverage: updatedGoal.desiredTicketAverage,
+            expectedConversion: updatedGoal.expectedConversion,
             createdAt: updatedGoal.createdAt || new Date(),
             updatedAt: updatedGoal.updatedAt || new Date()
           }, ...prev];
