@@ -1,194 +1,174 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { useApp } from '@/contexts/app-context';
-import { Goal } from '@/lib/types';
+import { Goal, GoalMetrics } from '@/lib/types';
+import { GoalForm } from './goal-form';
+import { GoalMetricsDisplay } from './goal-metrics';
+import { PeriodSelector } from '../financeiro/period-selector';
 import { toast } from 'sonner';
 import {
   Target,
   Plus,
+  Edit,
   TrendingUp,
   Calendar,
-  DollarSign,
-  Edit,
-  Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  BarChart3
 } from 'lucide-react';
 
-interface GoalFormProps {
-  goal?: Goal;
-  onSave: (goalData: Omit<Goal, 'id'>) => Promise<void>;
-  onCancel: () => void;
-}
+export function GoalsPanel() {
+  const { goals, updateGoal, transactions, sessions, comandas, clients } = useApp();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
-function GoalForm({ goal, onSave, onCancel }: GoalFormProps) {
-  const { user, transactions } = useApp();
-  const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    month: goal?.month || new Date().toISOString().slice(0, 7), // YYYY-MM
-    target: goal?.target.toString() || ''
-  });
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const selectedMonthStr = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`;
+  const isCurrentMonth = selectedMonthStr === currentMonth;
+  
+  const selectedGoal = goals.find(g => g.month === selectedMonthStr);
 
-  const calculateCurrentValue = (month: string) => {
-    const [year, monthNum] = month.split('-');
-    const monthlyTransactions = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getFullYear() === parseInt(year) &&
-             transactionDate.getMonth() === parseInt(monthNum) - 1 &&
-             t.type === 'receita';
+  // Calcular métricas operacionais
+  const goalMetrics = useMemo((): GoalMetrics => {
+    if (!selectedGoal) {
+      return {
+        target: 0,
+        current: 0,
+        percentage: 0,
+        remainingDays: 0,
+        dailySalesNeeded: 0,
+        tattoosNeeded: 0,
+        realConversionRate: 0,
+        expectedConversionRate: 0,
+        leadsNeeded: 0,
+        realTicketAverage: 0,
+        necessaryTicketAverage: 0
+      };
+    }
+
+    // Calcular faturamento atual do período
+    const currentRevenue = calculatePeriodRevenue(selectedYear, selectedMonth);
+    
+    // Calcular dias restantes (apenas para mês atual)
+    const now = new Date();
+    const endOfMonth = new Date(selectedYear, selectedMonth, 0);
+    const remainingDays = isCurrentMonth ? Math.max(0, endOfMonth.getDate() - now.getDate()) : 0;
+
+    // Calcular vendas necessárias por dia
+    const dailySalesNeeded = selectedGoal.availableDays > 0 ? selectedGoal.target / selectedGoal.availableDays : 0;
+
+    // Calcular ticket médio real do período
+    const periodSessions = sessions.filter(session => {
+      const sessionDate = new Date(session.date);
+      return sessionDate.getFullYear() === selectedYear &&
+             sessionDate.getMonth() + 1 === selectedMonth &&
+             session.status === 'realizado';
     });
     
-    return monthlyTransactions.reduce((sum, t) => sum + t.value, 0);
+    const realTicketAverage = periodSessions.length > 0 
+      ? periodSessions.reduce((sum, s) => sum + s.value, 0) / periodSessions.length 
+      : 0;
+
+    // Usar ticket médio desejado ou real
+    const ticketAverage = selectedGo
+
+al.desiredTicketAverage || realTicketAverage || 400; // fallback para R$ 400
+
+    // Calcular número de tatuagens necessárias
+    const tattoosNeeded = Math.ceil(selectedGoal.target / ticketAverage);
+
+    // Calcular taxa de conversão real do CRM no período
+    const periodClients = clients.filter(client => {
+      const createdDate = new Date(client.createdAt);
+      return createdDate.getFullYear() === selectedYear &&
+             createdDate.getMonth() + 1 === selectedMonth;
+    });
+
+    const closedClients = periodClients.filter(c => 
+      ['agendamento-realizado', 'cliente-fidelizado'].includes(c.status)
+    );
+
+    const realConversionRate = periodClients.length > 0 
+      ? (closedClients.length / periodClients.length) * 100 
+      : 0;
+
+    // Usar conversão esperada ou real
+    const expectedConversionRate = selectedGoal.expectedConversion || realConversionRate || 25; // fallback para 25%
+
+    // Calcular leads necessários
+    const leadsNeeded = expectedConversionRate > 0 
+      ? Math.ceil(tattoosNeeded / (expectedConversionRate / 100)) 
+      : 0;
+
+    // Calcular ticket médio necessário
+    const necessaryTicketAverage = tattoosNeeded > 0 ? selectedGoal.target / tattoosNeeded : 0;
+
+    const percentage = selectedGoal.target > 0 ? (currentRevenue / selectedGoal.target) * 100 : 0;
+
+    return {
+      target: selectedGoal.target,
+      current: currentRevenue,
+      percentage,
+      remainingDays,
+      dailySalesNeeded,
+      tattoosNeeded,
+      realConversionRate,
+      expectedConversionRate,
+      leadsNeeded,
+      realTicketAverage,
+      necessaryTicketAverage
+    };
+  }, [selectedGoal, selectedYear, selectedMonth, sessions, clients, isCurrentMonth]);
+
+  const calculatePeriodRevenue = (year: number, month: number) => {
+    // Receitas da Agenda
+    const agendaRevenue = sessions
+      .filter(session => {
+        const sessionDate = new Date(session.date);
+        return sessionDate.getFullYear() === year &&
+               sessionDate.getMonth() + 1 === month &&
+               session.status === 'realizado';
+      })
+      .reduce((sum, session) => sum + session.value, 0);
+
+    // Receitas das Comandas
+    const comandaRevenue = comandas
+      .filter(comanda => {
+        const comandaDate = new Date(comanda.date);
+        return comandaDate.getFullYear() === year &&
+               comandaDate.getMonth() + 1 === month &&
+               comanda.status === 'fechada';
+      })
+      .reduce((sum, comanda) => {
+        return sum + comanda.clients
+          .filter(client => client.payment)
+          .reduce((clientSum, client) => clientSum + (client.payment?.netValue || 0), 0);
+      }, 0);
+
+    return agendaRevenue + comandaRevenue;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validações
-    if (!formData.month) {
-      toast.error('Mês é obrigatório');
-      return;
-    }
-    
-    if (!formData.target.trim()) {
-      toast.error('Meta de faturamento é obrigatória');
-      return;
-    }
-    
-    const targetValue = parseFloat(formData.target.replace(',', '.'));
-    if (isNaN(targetValue) || targetValue <= 0) {
-      toast.error('Meta deve ser um valor válido maior que zero');
-      return;
-    }
-
-    setSaving(true);
-
+  const handleSaveGoal = async (goalData: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const current = calculateCurrentValue(formData.month);
-      const percentage = targetValue > 0 ? (current / targetValue) * 100 : 0;
+      // Recalcular current e percentage com dados atuais
+      const currentRevenue = calculatePeriodRevenue(selectedYear, selectedMonth);
+      const percentage = goalData.target > 0 ? (currentRevenue / goalData.target) * 100 : 0;
 
-      const goalData: Omit<Goal, 'id'> = {
-        tattooerId: user?.id || '1',
-        month: formData.month,
-        target: targetValue,
-        current,
+      const updatedGoalData = {
+        ...goalData,
+        current: currentRevenue,
         percentage
       };
 
-      await onSave(goalData);
-      toast.success(goal ? 'Meta atualizada com sucesso!' : 'Meta criada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao salvar meta:', error);
-      toast.error('Erro ao salvar meta. Tente novamente.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const previewCurrent = calculateCurrentValue(formData.month);
-  const previewTarget = parseFloat(formData.target.replace(',', '.')) || 0;
-  const previewPercentage = previewTarget > 0 ? (previewCurrent / previewTarget) * 100 : 0;
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="month">Mês *</Label>
-        <Input
-          id="month"
-          type="month"
-          value={formData.month}
-          onChange={(e) => setFormData(prev => ({ ...prev, month: e.target.value }))}
-          required
-          className={!formData.month ? 'border-red-300' : ''}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="target">Meta de Faturamento (R$) *</Label>
-        <Input
-          id="target"
-          type="text"
-          value={formData.target}
-          onChange={(e) => setFormData(prev => ({ ...prev, target: e.target.value }))}
-          placeholder="8000,00"
-          required
-          className={!formData.target.trim() ? 'border-red-300' : ''}
-        />
-      </div>
-
-      {/* Preview da Meta */}
-      {formData.month && formData.target && previewTarget > 0 && (
-        <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-          <h4 className="font-medium text-sm">Preview da Meta</h4>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Progresso atual:</span>
-              <span className="font-medium">{previewPercentage.toFixed(1)}%</span>
-            </div>
-            <Progress value={Math.min(previewPercentage, 100)} className="h-2" />
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Atual: </span>
-                <span className="font-medium">R$ {previewCurrent.toLocaleString('pt-BR')}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Meta: </span>
-                <span className="font-medium">R$ {previewTarget.toLocaleString('pt-BR')}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Button type="submit" className="flex-1" disabled={saving}>
-          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {goal ? 'Atualizar Meta' : 'Criar Meta'}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-          Cancelar
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-export function GoalsPanel() {
-  const { goals, updateGoal, transactions } = useApp();
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const currentGoal = goals.find(g => g.month === currentMonth);
-
-  // Recalcular progresso das metas baseado nas transações atuais
-  const recalculateGoalProgress = (goal: Goal) => {
-    const [year, monthNum] = goal.month.split('-');
-    const monthlyRevenue = transactions.filter(t => {
-      const transactionDate = new Date(t.date);
-      return transactionDate.getFullYear() === parseInt(year) &&
-             transactionDate.getMonth() === parseInt(monthNum) - 1 &&
-             t.type === 'receita';
-    }).reduce((sum, t) => sum + t.value, 0);
-
-    return {
-      ...goal,
-      current: monthlyRevenue,
-      percentage: goal.target > 0 ? (monthlyRevenue / goal.target) * 100 : 0
-    };
-  };
-
-  const handleSaveGoal = async (goalData: Omit<Goal, 'id'>) => {
-    try {
-      await updateGoal(goalData);
+      await updateGoal(updatedGoalData);
       setIsFormOpen(false);
       setEditingGoal(null);
     } catch (error) {
@@ -221,18 +201,18 @@ export function GoalsPanel() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="hidden lg:block">
-          <h2 className="text-2xl font-bold">Metas</h2>
-          <p className="text-muted-foreground">Acompanhe seu progresso mensal</p>
+          <h2 className="text-2xl font-bold">Metas Operacionais</h2>
+          <p className="text-muted-foreground">Configure metas e acompanhe cálculos operacionais</p>
         </div>
         
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogTrigger asChild>
             <Button onClick={handleNewGoal}>
               <Plus className="h-4 w-4 mr-2" />
-              Nova Meta
+              {selectedGoal ? 'Editar Meta' : 'Nova Meta'}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingGoal ? 'Editar Meta' : 'Criar Nova Meta'}
@@ -240,82 +220,160 @@ export function GoalsPanel() {
             </DialogHeader>
             <GoalForm
               goal={editingGoal || undefined}
+              month={selectedMonthStr}
               onSave={handleSaveGoal}
               onCancel={() => {
                 setIsFormOpen(false);
                 setEditingGoal(null);
               }}
+              isEditing={!!editingGoal}
             />
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* Seletor de Período */}
+      <PeriodSelector
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        onPeriodChange={(year, month) => {
+          setSelectedYear(year);
+          setSelectedMonth(month);
+        }}
+      />
+
       {/* Meta Atual */}
-      {currentGoal && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                Meta de {formatMonth(currentGoal.month)}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {recalculateGoalProgress(currentGoal).percentage >= 100 ? (
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-orange-600" />
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditGoal(currentGoal)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+      {selectedGoal ? (
+        <div className="space-y-6">
+          {/* Resumo da Meta */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Progresso</span>
-                <span className="text-sm font-medium">
-                  {recalculateGoalProgress(currentGoal).percentage.toFixed(1)}%
-                </span>
-              </div>
-              
-              <Progress 
-                value={Math.min(recalculateGoalProgress(currentGoal).percentage, 100)} 
-                className="h-3"
-              />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Atual</p>
-                  <p className="text-lg font-bold text-primary">
-                    {formatCurrency(recalculateGoalProgress(currentGoal).current)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Meta</p>
-                  <p className="text-lg font-bold">
-                    {formatCurrency(currentGoal.target)}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  {recalculateGoalProgress(currentGoal).percentage >= 100 ? (
-                    <span className="text-green-600 font-medium">🎉 Meta atingida! Parabéns!</span>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  Meta de {formatMonth(selectedGoal.month)}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {goalMetrics.percentage >= 100 ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
                   ) : (
-                    <>Faltam {formatCurrency(Math.max(0, currentGoal.target - recalculateGoalProgress(currentGoal).current))} para atingir a meta</>
+                    <AlertCircle className="h-5 w-5 text-orange-600" />
                   )}
-                </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditGoal(selectedGoal)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Progresso</span>
+                  <span className="text-sm font-medium">
+                    {goalMetrics.percentage.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <Progress 
+                  value={Math.min(goalMetrics.percentage, 100)} 
+                  className="h-3"
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Atual</p>
+                    <p className="text-lg font-bold text-primary">
+                      {formatCurrency(goalMetrics.current)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Meta</p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(goalMetrics.target)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {goalMetrics.percentage >= 100 ? (
+                      <span className="text-green-600 font-medium">🎉 Meta atingida! Parabéns!</span>
+                    ) : (
+                      <>Faltam {formatCurrency(Math.max(0, goalMetrics.target - goalMetrics.current))} para atingir a meta</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Métricas Operacionais */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Métricas Operacionais
+            </h3>
+            <GoalMetricsDisplay metrics={goalMetrics} isCurrentMonth={isCurrentMonth} />
+          </div>
+
+          {/* Configurações da Meta */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações da Meta</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Dias Disponíveis</p>
+                  <p className="font-medium">{selectedGoal.availableDays} dias</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Ticket Médio Desejado</p>
+                  <p className="font-medium">
+                    {selectedGoal.desiredTicketAverage 
+                      ? formatCurrency(selectedGoal.desiredTicketAverage)
+                      : 'Automático'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Conversão Esperada</p>
+                  <p className="font-medium">
+                    {selectedGoal.expectedConversion 
+                      ? `${selectedGoal.expectedConversion}%`
+                      : 'Automática'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Última Atualização</p>
+                  <p className="font-medium">
+                    {selectedGoal.updatedAt 
+                      ? new Date(selectedGoal.updatedAt).toLocaleDateString('pt-BR')
+                      : 'N/A'
+                    }
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <Target className="h-16 w-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
+          <h3 className="font-medium mb-2">Nenhuma meta definida para {formatMonth(selectedMonthStr)}</h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            Configure sua meta mensal e acompanhe os cálculos operacionais
+          </p>
+          <Button onClick={handleNewGoal}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Meta do Mês
+          </Button>
+        </div>
       )}
 
       {/* Histórico de Metas */}
@@ -329,41 +387,49 @@ export function GoalsPanel() {
               {goals
                 .sort((a, b) => b.month.localeCompare(a.month))
                 .map((goal) => {
-                  const updatedGoal = recalculateGoalProgress(goal);
-                  const isCurrentMonth = goal.month === currentMonth;
+                  const isCurrentGoal = goal.month === selectedMonthStr;
+                  const revenue = calculatePeriodRevenue(
+                    parseInt(goal.month.split('-')[0]),
+                    parseInt(goal.month.split('-')[1])
+                  );
+                  const percentage = goal.target > 0 ? (revenue / goal.target) * 100 : 0;
                   
                   return (
                     <div
                       key={goal.id}
                       className={`p-4 border rounded-lg ${
-                        isCurrentMonth ? 'border-primary/20 bg-primary/5' : ''
+                        isCurrentGoal ? 'border-primary/20 bg-primary/5' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-medium">{formatMonth(goal.month)}</h4>
                         <div className="flex items-center gap-2">
-                          <Badge variant={updatedGoal.percentage >= 100 ? 'default' : 'secondary'}>
-                            {updatedGoal.percentage.toFixed(1)}%
+                          <Badge variant={percentage >= 100 ? 'default' : 'secondary'}>
+                            {percentage.toFixed(1)}%
                           </Badge>
-                          {updatedGoal.percentage >= 100 && (
+                          {percentage >= 100 && (
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEditGoal(goal)}
+                            onClick={() => {
+                              const [year, month] = goal.month.split('-');
+                              setSelectedYear(parseInt(year));
+                              setSelectedMonth(parseInt(month));
+                            }}
                           >
-                            <Edit className="h-4 w-4" />
+                            Ver Detalhes
                           </Button>
                         </div>
                       </div>
                       
-                      <Progress value={Math.min(updatedGoal.percentage, 100)} className="mb-3" />
+                      <Progress value={Math.min(percentage, 100)} className="mb-3" />
                       
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Atual</p>
-                          <p className="font-medium">{formatCurrency(updatedGoal.current)}</p>
+                          <p className="font-medium">{formatCurrency(revenue)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Meta</p>
@@ -372,10 +438,10 @@ export function GoalsPanel() {
                         <div>
                           <p className="text-muted-foreground">Diferença</p>
                           <p className={`font-medium ${
-                            updatedGoal.current >= goal.target ? 'text-green-600' : 'text-red-600'
+                            revenue >= goal.target ? 'text-green-600' : 'text-red-600'
                           }`}>
-                            {updatedGoal.current >= goal.target ? '+' : ''}
-                            {formatCurrency(updatedGoal.current - goal.target)}
+                            {revenue >= goal.target ? '+' : ''}
+                            {formatCurrency(revenue - goal.target)}
                           </p>
                         </div>
                       </div>
@@ -386,66 +452,14 @@ export function GoalsPanel() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="font-medium mb-2">Nenhuma meta definida</h3>
+              <h3 className="font-medium mb-2">Nenhuma meta histórica</h3>
               <p className="text-sm mb-4">
-                Defina suas metas mensais para acompanhar seu progresso
+                Crie metas mensais para acompanhar seu histórico de performance
               </p>
-              <Button onClick={handleNewGoal}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Primeira Meta
-              </Button>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Estatísticas */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Média Mensal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {goals.length > 0 
-                ? formatCurrency(goals.reduce((sum, g) => sum + recalculateGoalProgress(g).current, 0) / goals.length)
-                : 'R$ 0'
-              }
-            </div>
-            <p className="text-xs text-muted-foreground">Últimos {goals.length} meses</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Taxa de Sucesso</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {goals.length > 0
-                ? Math.round((goals.filter(g => recalculateGoalProgress(g).percentage >= 100).length / goals.length) * 100)
-                : 0
-              }%
-            </div>
-            <p className="text-xs text-muted-foreground">Metas atingidas</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Melhor Mês</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {goals.length > 0
-                ? Math.max(...goals.map(g => recalculateGoalProgress(g).percentage)).toFixed(0)
-                : 0
-              }%
-            </div>
-            <p className="text-xs text-muted-foreground">Maior progresso</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

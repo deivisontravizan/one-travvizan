@@ -53,10 +53,33 @@ export interface Session {
 export interface Goal {
   id: string;
   tattooerId: string;
-  month: string;
+  month: string; // YYYY-MM format
+  target: number; // Meta de faturamento
+  current: number; // Valor atual atingido
+  percentage: number; // Percentual atingido
+  // Novos campos operacionais
+  availableDays: number; // Dias disponíveis para atender
+  desiredTicketAverage?: number; // Ticket médio desejado (opcional)
+  expectedConversion?: number; // Conversão esperada em % (opcional)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GoalMetrics {
+  // Valores básicos
   target: number;
   current: number;
   percentage: number;
+  remainingDays: number;
+  
+  // Cálculos operacionais
+  dailySalesNeeded: number; // Vendas necessárias por dia
+  tattoosNeeded: number; // Número de tatuagens necessárias
+  realConversionRate: number; // Taxa de conversão real do CRM
+  expectedConversionRate: number; // Taxa esperada ou real
+  leadsNeeded: number; // Leads necessários
+  realTicketAverage: number; // Ticket médio real do período
+  necessaryTicketAverage: number; // Ticket médio necessário
 }
 
 export interface Transaction {
