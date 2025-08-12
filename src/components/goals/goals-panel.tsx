@@ -78,9 +78,7 @@ export function GoalsPanel() {
       : 0;
 
     // Usar ticket médio desejado ou real
-    const ticketAverage = selectedGo
-
-al.desiredTicketAverage || realTicketAverage || 400; // fallback para R$ 400
+    const ticketAverage = selectedGoal.desiredTicketAverage || realTicketAverage || 400; // fallback para R$ 400
 
     // Calcular número de tatuagens necessárias
     const tattoosNeeded = Math.ceil(selectedGoal.target / ticketAverage);

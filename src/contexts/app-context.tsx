@@ -88,7 +88,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setClients(clientsData);
       setSessions(sessionsData);
-      setGoals(goalsData);
+      
+      // Garantir que as metas tenham todos os campos obrigatórios
+      const goalsWithDefaults = goalsData.map(goal => ({
+        ...goal,
+        availableDays: goal.availableDays || 22,
+        createdAt: goal.createdAt || new Date(),
+        updatedAt: goal.updatedAt || new Date()
+      }));
+      setGoals(goalsWithDefaults);
+      
       setTransactions(transactionsData);
       setTaxSettings(taxSettingsData);
     } catch (error) {
@@ -252,10 +261,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const existingIndex = prev.findIndex(g => g.month === goalData.month);
         if (existingIndex >= 0) {
           const newGoals = [...prev];
-          newGoals[existingIndex] = updatedGoal;
+          newGoals[existingIndex] = {
+            ...updatedGoal,
+            availableDays: updatedGoal.availableDays || 22,
+            createdAt: updatedGoal.createdAt || new Date(),
+            updatedAt: updatedGoal.updatedAt || new Date()
+          };
           return newGoals;
         } else {
-          return [updatedGoal, ...prev];
+          return [{
+            ...updatedGoal,
+            availableDays: updatedGoal.availableDays || 22,
+            createdAt: updatedGoal.createdAt || new Date(),
+            updatedAt: updatedGoal.updatedAt || new Date()
+          }, ...prev];
         }
       });
     } catch (error) {
