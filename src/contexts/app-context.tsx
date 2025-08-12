@@ -90,7 +90,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSessions(sessionsData);
       
       // Garantir que as metas tenham todos os campos obrigatórios
-      const goalsWithDefaults: Goal[] = goalsData.map(goal => ({
+      const goalsWithDefaults: Goal[] = (goalsData as any[]).map((goal: any) => ({
         id: goal.id || Date.now().toString(),
         tattooerId: goal.tattooerId || '1',
         month: goal.month || new Date().toISOString().slice(0, 7),
@@ -264,37 +264,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateGoal = async (goalData: Omit<Goal, 'id'>) => {
     try {
       const updatedGoal = await createOrUpdateGoal(goalData);
+      const updatedGoalAny = updatedGoal as any;
+      
       setGoals(prev => {
         const existingIndex = prev.findIndex(g => g.month === goalData.month);
         if (existingIndex >= 0) {
           const newGoals = [...prev];
           newGoals[existingIndex] = {
-            id: updatedGoal.id || prev[existingIndex].id,
-            tattooerId: updatedGoal.tattooerId || prev[existingIndex].tattooerId,
-            month: updatedGoal.month || prev[existingIndex].month,
-            target: updatedGoal.target || prev[existingIndex].target,
-            current: updatedGoal.current || prev[existingIndex].current,
-            percentage: updatedGoal.percentage || prev[existingIndex].percentage,
-            availableDays: updatedGoal.availableDays || prev[existingIndex].availableDays || 22,
-            desiredTicketAverage: updatedGoal.desiredTicketAverage,
-            expectedConversion: updatedGoal.expectedConversion,
-            createdAt: updatedGoal.createdAt || prev[existingIndex].createdAt || new Date(),
-            updatedAt: updatedGoal.updatedAt || new Date()
+            id: updatedGoalAny.id || prev[existingIndex].id,
+            tattooerId: updatedGoalAny.tattooerId || prev[existingIndex].tattooerId,
+            month: updatedGoalAny.month || prev[existingIndex].month,
+            target: updatedGoalAny.target || prev[existingIndex].target,
+            current: updatedGoalAny.current || prev[existingIndex].current,
+            percentage: updatedGoalAny.percentage || prev[existingIndex].percentage,
+            availableDays: updatedGoalAny.availableDays || prev[existingIndex].availableDays || 22,
+            desiredTicketAverage: updatedGoalAny.desiredTicketAverage,
+            expectedConversion: updatedGoalAny.expectedConversion,
+            createdAt: updatedGoalAny.createdAt || prev[existingIndex].createdAt || new Date(),
+            updatedAt: updatedGoalAny.updatedAt || new Date()
           };
           return newGoals;
         } else {
           return [{
-            id: updatedGoal.id || Date.now().toString(),
-            tattooerId: updatedGoal.tattooerId || '1',
-            month: updatedGoal.month || new Date().toISOString().slice(0, 7),
-            target: updatedGoal.target || 0,
-            current: updatedGoal.current || 0,
-            percentage: updatedGoal.percentage || 0,
-            availableDays: updatedGoal.availableDays || 22,
-            desiredTicketAverage: updatedGoal.desiredTicketAverage,
-            expectedConversion: updatedGoal.expectedConversion,
-            createdAt: updatedGoal.createdAt || new Date(),
-            updatedAt: updatedGoal.updatedAt || new Date()
+            id: updatedGoalAny.id || Date.now().toString(),
+            tattooerId: updatedGoalAny.tattooerId || '1',
+            month: updatedGoalAny.month || new Date().toISOString().slice(0, 7),
+            target: updatedGoalAny.target || 0,
+            current: updatedGoalAny.current || 0,
+            percentage: updatedGoalAny.percentage || 0,
+            availableDays: updatedGoalAny.availableDays || 22,
+            desiredTicketAverage: updatedGoalAny.desiredTicketAverage,
+            expectedConversion: updatedGoalAny.expectedConversion,
+            createdAt: updatedGoalAny.createdAt || new Date(),
+            updatedAt: updatedGoalAny.updatedAt || new Date()
           }, ...prev];
         }
       });
