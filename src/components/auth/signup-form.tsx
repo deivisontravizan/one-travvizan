@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/auth-context';
 import { Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
@@ -22,8 +21,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'tatuador',
-    plan: 'solo'
+    studio: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -36,7 +34,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
 
     // Validações
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      setError('Por favor, preencha todos os campos');
+      setError('Por favor, preencha todos os campos obrigatórios');
       return;
     }
 
@@ -53,8 +51,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
     try {
       const { error } = await signUp(formData.email, formData.password, {
         name: formData.name,
-        role: formData.role as any,
-        plan: formData.plan as any
+        studio: formData.studio || undefined
       });
       
       if (error) {
@@ -82,13 +79,6 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
     }));
     // Limpar erro quando usuário começar a digitar
     if (error) setError(null);
-  };
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   if (success) {
@@ -142,7 +132,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="name">Nome Completo</Label>
+            <Label htmlFor="name">Nome Completo *</Label>
             <Input
               id="name"
               name="name"
@@ -156,7 +146,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email *</Label>
             <Input
               id="email"
               name="email"
@@ -169,39 +159,21 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="role">Função</Label>
-              <Select value={formData.role} onValueChange={(value) => handleSelectChange('role', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tatuador">Tatuador</SelectItem>
-                  <SelectItem value="assistente">Assistente</SelectItem>
-                  <SelectItem value="gestor">Gestor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="plan">Plano</Label>
-              <Select value={formData.plan} onValueChange={(value) => handleSelectChange('plan', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="solo">Solo</SelectItem>
-                  <SelectItem value="duo">Duo</SelectItem>
-                  <SelectItem value="studio">Studio</SelectItem>
-                  <SelectItem value="studio-pro">Studio Pro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="studio">Estúdio (Opcional)</Label>
+            <Input
+              id="studio"
+              name="studio"
+              type="text"
+              placeholder="Nome do seu estúdio"
+              value={formData.studio}
+              onChange={handleChange}
+              disabled={loading}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+            <Label htmlFor="password">Senha *</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -231,7 +203,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+            <Label htmlFor="confirmPassword">Confirmar Senha *</Label>
             <div className="relative">
               <Input
                 id="confirmPassword"
