@@ -9,9 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useApp } from '@/contexts/app-context';
 import { Comanda, ComandaClient, ComandaPayment } from '@/lib/types';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import {
   Receipt,
   Plus,
@@ -25,7 +30,10 @@ import {
   Loader2,
   Edit,
   Trash2,
-  Lock
+  Lock,
+  CalendarIcon,
+  X,
+  Filter
 } from 'lucide-react';
 
 interface PaymentFormProps {
@@ -493,9 +501,27 @@ export function ComandaView() {
   const [selectedClient, setSelectedClient] = useState<ComandaClient | null>(null);
   const [newComandaValue, setNewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Estados para filtro de data
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  // Função para filtrar comandas por data
+  const filterComandsByDate = (comandas: Comanda[]) => {
+    if (!selectedDate) return comandas;
+    
+    return comandas.filter(comanda => {
+      const comandaDate = new Date(comanda.date);
+      return (
+        comandaDate.getDate() === selectedDate.getDate() &&
+        comandaDate.getMonth() === selectedDate.getMonth() &&
+        comandaDate.getFullYear() === selectedDate.getFullYear()
+      );
+    });
   };
 
   const handleCreateComanda = async (e: React.FormEvent) => {
@@ -578,8 +604,10 @@ export function ComandaView() {
     return client.payment?.netValue || 0;
   };
 
-  const openComandas = comandas.filter(c => c.status === 'aberta');
-  const closedComandas = comandas.filter(c => c.status === 'fechada');
+  // Aplicar filtro de data
+  const filteredComandas = filterComandsByDate(comandas);
+  const openComandas = filteredComandas.filter(c => c.status === 'aberta');
+  const closedComandas = filteredComandas.filter(c => c.status === 'fechada');
 
   return (
     <div className="space-y-6">
@@ -625,16 +653,75 @@ export function ComandaView() {
         </Dialog>
       </div>
 
+      {/* Filtro de Data */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Filtrar por data:</Label>
+            </div>
+            
+            <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[240px] justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setIsCalendarOpen(false);
+                  }}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {selectedDate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedDate(undefined)}
+                className="h-8 px-2"
+              >
+                <X className="h-4 w-4" />
+                Limpar filtro
+              </Button>
+            )}
+
+            <div className="text-sm text-muted-foreground">
+              {selectedDate 
+                ? `Mostrando comandas de ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`
+                : `Mostrando todas as comandas (${comandas.length} total)`
+              }
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Comandas Abertas */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-green-600">Comandas Abertas</h3>
+        <h3 className="text-lg font-semibold text-green-600">
+          Comandas Abertas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`}
+        </h3>
         
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
-              // Ajuste: valor pendente baseado no valor líquido, não no valor bruto
+              const totalP aid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
               const totalPendente = totalClients - totalPaid;
               
               return (
@@ -763,26 +850,38 @@ export function ComandaView() {
           <Card>
             <CardContent className="p-8 text-center">
               <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="font-medium mb-2">Nenhuma comanda aberta</h3>
+              <h3 className="font-medium mb-2">
+                {selectedDate 
+                  ? `Nenhuma comanda aberta em ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`
+                  : 'Nenhuma comanda aberta'
+                }
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Crie uma nova comanda para começar o dia
+                {selectedDate 
+                  ? 'Tente selecionar outra data ou limpar o filtro'
+                  : 'Crie uma nova comanda para começar o dia'
+                }
               </p>
-              <Button onClick={() => setIsComandaFormOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Primeira Comanda
-              </Button>
+              {!selectedDate && (
+                <Button onClick={() => setIsComandaFormOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Primeira Comanda
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
       </div>
 
       {/* Comandas Fechadas */}
-      {closedComandas.length > 0  && (
+      {closedComandas.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-muted-foreground">Comandas Fechadas</h3>
+          <h3 className="text-lg font-semibold text-muted-foreground">
+            Comandas Fechadas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`}
+          </h3>
           
           <div className="grid gap-4">
-            {closedComandas.slice(0, 5).map((comanda) => {
+            {closedComandas.slice(0, 10).map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
               const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
               
