@@ -82,7 +82,7 @@ const bottomItems = [
 ];
 
 export function Sidebar() {
-  const { currentView, set CurrentView } = useApp();
+  const { currentView, setCurrentView } = useApp();
   const { user } = useAuth();
 
   return (
