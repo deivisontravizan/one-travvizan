@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import { Transaction, ExpenseCategory } from '@/lib/types';
 import { PeriodSelector } from './period-selector';
 import { ExpenseCategories } from './expense-categories';
@@ -37,7 +38,7 @@ interface ExpenseFormProps {
 }
 
 function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: ExpenseFormProps) {
-  const { user } = useApp();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -69,15 +70,13 @@ function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: Expense
     setSaving(true);
 
     try {
-      const expense: Omit<Transaction, 'id'> = {
-        tattooerId: user?.id || '1',
+      const expense: Omit<Transaction, 'i'> = {
+        tattooerId: user?.id || '',
         type: 'despesa',
         description: formData.description,
         value: parseFloat(formData.value.replace(',', '.')),
         date: new Date(formData.date),
-        category: formData.category,
-        source: 'manual',
-        isAutomatic: false
+        category: formData.category
       };
 
       await onSave(expense);
@@ -99,7 +98,7 @@ function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: Expense
     try {
       await onCreateCategory({
         name: newCategoryName.trim(),
-        tattooerId: user?.id || '1'
+        tattooerId: user?.id || ''
       });
       
       setFormData(prev => ({ ...prev, category: newCategoryName.trim() }));

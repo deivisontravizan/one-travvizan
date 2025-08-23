@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { UserMenu } from '@/components/layout/user-menu';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import {
   LayoutDashboard,
   Users,
@@ -80,7 +82,8 @@ const bottomItems = [
 ];
 
 export function Sidebar() {
-  const { currentView, setCurrentView, user } = useApp();
+  const { currentView, set CurrentView } = useApp();
+  const { user } = useAuth();
 
   return (
     <aside className="hidden lg:flex h-full w-64 flex-col bg-card border-r border-border">
@@ -103,6 +106,7 @@ export function Sidebar() {
               <p className="text-sm font-medium truncate">{user.name}</p>
               <p className="text-xs text-muted-foreground capitalize">{user.plan}</p>
             </div>
+            <UserMenu />
           </div>
         )}
       </div>

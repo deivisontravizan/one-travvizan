@@ -7,7 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { UserMenu } from '@/components/layout/user-menu';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import {
   LayoutDashboard,
   Users,
@@ -88,7 +90,8 @@ interface MobileSidebarProps {
 }
 
 function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
-  const { currentView, setCurrentView, user } = useApp();
+  const { currentView, setCurrentView } = useApp();
+  const { user } = useAuth();
 
   const handleNavigation = (viewId: string) => {
     setCurrentView(viewId);
@@ -213,7 +216,7 @@ export function MobileHeader() {
         </div>
         
         <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-primary" />
+          <UserMenu />
         </div>
       </header>
       

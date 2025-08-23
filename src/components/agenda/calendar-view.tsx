@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import { Session, Client } from '@/lib/types';
 import { toast } from 'sonner';
 import {
@@ -143,7 +144,8 @@ interface NewSessionDialogProps {
 }
 
 function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
-  const { clients, addSession, addClient, user } = useApp();
+  const { clients, addSession, addClient } = useApp();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [clientType, setClientType] = useState<'existing' | 'new'>('existing');
@@ -256,7 +258,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
 
       const session: Omit<Session, 'id'> = {
         clientId,
-        tattooerId: user?.id || '1',
+        tattooerId: user?.id || '',
         date: new Date(sessionData.date),
         duration: parseInt(sessionData.duration),
         value: parseFloat(sessionData.value.replace(',', '.')),

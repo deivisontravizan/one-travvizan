@@ -23,7 +23,7 @@ export async function getClients(): Promise<Client[]> {
     if (error) throw error;
     
     return data?.map(client => ({
-      i: client.id,
+      id: client.id,
       name: client.name,
       whatsapp: client.whatsapp,
       instagram: client.instagram,
