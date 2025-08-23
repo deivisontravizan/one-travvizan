@@ -106,7 +106,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoals(goalsWithDefaults);
       
       setTransactions(transactionsData);
-      setTaxSettings(taxSettingsData);
+      
+      // Garantir que taxSettings tenha a estrutura completa
+      if (taxSettingsData) {
+        const taxSettingsWithDefaults: TaxSettings = {
+          id: (taxSettingsData as any).id || Date.now().toString(),
+          tattooerId: (taxSettingsData as any).tattooerId || '1',
+          creditCardCashRate: (taxSettingsData as any).creditCardCashRate || 3.5,
+          creditCardInstallmentRate: (taxSettingsData as any).creditCardInstallmentRate || 4.5,
+          debitCardRate: (taxSettingsData as any).debitCardRate || 2.5,
+          pixRate: (taxSettingsData as any).pixRate || 0,
+          installmentRates: (taxSettingsData as any).installmentRates || {
+            twoInstallments: 4.0,
+            threeInstallments: 4.5,
+            fourInstallments: 5.0,
+            fiveInstallments: 5.5,
+            sixInstallments: 6.0,
+            sevenInstallments: 6.5,
+            eightInstallments: 7.0,
+            nineInstallments: 7.5,
+            tenInstallments: 8.0,
+            elevenInstallments: 8.5,
+            twelveInstallments: 9.0
+          },
+          updatedAt: (taxSettingsData as any).updatedAt || new Date()
+        };
+        setTaxSettings(taxSettingsWithDefaults);
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -310,7 +336,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateTaxSettings = async (settings: TaxSettings) => {
     try {
       const updatedSettings = await createOrUpdateTaxSettings(settings);
-      setTaxSettings(updatedSettings);
+      // Garantir que o objeto retornado tenha a estrutura completa
+      const settingsWithDefaults: TaxSettings = {
+        id: (updatedSettings as any).id || settings.id,
+        tattooerId: (updatedSettings as any).tattooerId || settings.tattooerId,
+        creditCardCashRate: (updatedSettings as any).creditCardCashRate || settings.creditCardCashRate,
+        creditCardInstallmentRate: (updatedSettings as any).creditCardInstallmentRate || settings.creditCardInstallmentRate,
+        debitCardRate: (updatedSettings as any).debitCardRate || settings.debitCardRate,
+        pixRate: (updatedSettings as any).pixRate || settings.pixRate,
+        installmentRates: (updatedSettings as any).installmentRates || settings.installmentRates,
+        updatedAt: (updatedSettings as any).updatedAt || settings.updatedAt
+      };
+      setTaxSettings(settingsWithDefaults);
     } catch (error) {
       console.error('Erro ao atualizar configurações de taxa:', error);
       throw error;
