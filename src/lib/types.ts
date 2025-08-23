@@ -141,7 +141,8 @@ export interface ComandaClient {
   description: string;
   value: number;
   status: 'pendente' | 'finalizado';
-  payment?: ComandaPayment;
+  payment?: ComandaPayment; // Mantido para compatibilidade
+  payments?: ComandaPayment[]; // Novo: múltiplos pagamentos
   createdAt: Date;
 }
 

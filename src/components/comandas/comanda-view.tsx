@@ -22,7 +22,9 @@ import {
   CreditCard,
   Banknote,
   Smartphone,
-  Loader2
+  Loader2,
+  Edit,
+  Trash2
 } from 'lucide-react';
 
 interface PaymentFormProps {
@@ -34,14 +36,19 @@ interface PaymentFormProps {
 function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
   const { taxSettings } = useApp();
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    method: 'dinheiro' as ComandaPayment['method'],
-    totalValue: comandaClient.value.toString(),
+  const [payments, setPayments] = useState<Array<{
+    method: ComandaPayment['method'];
+    value: string;
+    installments: number;
+    feesPaidByClient: boolean;
+  }>>([{
+    method: 'dinheiro',
+    value: '',
     installments: 1,
     feesPaidByClient: false
-  });
+  }]);
 
-  // Função para obter taxa configurada (invisível ao usuário)
+  // Função para obter taxa configurada
   const getCardRate = (method: string, installments?: number) => {
     if (!taxSettings) {
       const defaultRates = {
@@ -90,29 +97,27 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     }
   };
 
-  // Calcular valores automaticamente (invisível ao usuário)
-  const calculatePaymentValues = () => {
-    const totalValue = parseFloat(formData.totalValue.replace(',', '.'));
-    if (isNaN(totalValue)) return { grossValue: 0, netValue: 0, fees: 0 };
+  // Calcular valores para um pagamento específico
+  const calculatePaymentValues = (payment: typeof payments[0]) => {
+    const value = parseFloat(payment.value.replace(',', '.'));
+    if (isNaN(value)) return { grossValue: 0, netValue: 0, fees: 0 };
 
     let rate = 0;
-    if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method)) {
-      rate = getCardRate(formData.method, formData.installments);
+    if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(payment.method)) {
+      rate = getCardRate(payment.method, payment.installments);
     }
 
     let grossValue: number;
     let netValue: number;
     let fees: number;
 
-    if (formData.feesPaidByClient) {
-      // Cliente paga as taxas: valor informado é o valor bruto, valor líquido é 100%
-      grossValue = totalValue;
+    if (payment.feesPaidByClient) {
+      grossValue = value;
       fees = (grossValue * rate) / 100;
-      netValue = grossValue; // 100% do valor vai para o financeiro
+      netValue = grossValue;
     } else {
-      // Tatuador assume as taxas: valor informado é o valor líquido desejado
-      netValue = totalValue;
-      grossValue = totalValue;
+      netValue = value;
+      grossValue = value;
       fees = (grossValue * rate) / 100;
       netValue = grossValue - fees;
     }
@@ -120,34 +125,73 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     return { grossValue, netValue, fees };
   };
 
+  // Calcular totais consolidados
+  const calculateTotals = () => {
+    return payments.reduce((totals, payment) => {
+      const { grossValue, netValue, fees } = calculatePaymentValues(payment);
+      return {
+        totalGross: totals.totalGross + grossValue,
+        totalNet: totals.totalNet + netValue,
+        totalFees: totals.totalFees + fees
+      };
+    }, { totalGross: 0, totalNet: 0, totalFees: 0 });
+  };
+
+  const addPaymentMethod = () => {
+    setPayments(prev => [...prev, {
+      method: 'dinheiro',
+      value: '',
+      installments: 1,
+      feesPaidByClient: false
+    }]);
+  };
+
+  const removePaymentMethod = (index: number) => {
+    if (payments.length > 1) {
+      setPayments(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updatePayment = (index: number, updates: Partial<typeof payments[0]>) => {
+    setPayments(prev => prev.map((payment, i) => 
+      i === index ? { ...payment, ...updates } : payment
+    ));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.totalValue) {
-      toast.error('Valor é obrigatório');
+    // Validar se todos os pagamentos têm valor
+    const hasEmptyValues = payments.some(p => !p.value || parseFloat(p.value.replace(',', '.')) <= 0);
+    if (hasEmptyValues) {
+      toast.error('Todos os pagamentos devem ter valor maior que zero');
       return;
     }
 
     setSaving(true);
 
     try {
-      const { grossValue, netValue, fees } = calculatePaymentValues();
+      // Processar cada pagamento
+      for (const payment of payments) {
+        const { grossValue, netValue, fees } = calculatePaymentValues(payment);
 
-      const payment: Omit<ComandaPayment, 'id' | 'createdAt'> = {
-        comandaClientId: comandaClient.id,
-        method: formData.method,
-        grossValue,
-        netValue,
-        fees,
-        installments: formData.method === 'credito-parcelado' ? formData.installments : undefined,
-        feesPaidByClient: formData.feesPaidByClient
-      };
+        const paymentData: Omit<ComandaPayment, 'id' | 'createdAt'> = {
+          comandaClientId: comandaClient.id,
+          method: payment.method,
+          grossValue,
+          netValue,
+          fees,
+          installments: payment.method === 'credito-parcelado' ? payment.installments : undefined,
+          feesPaidByClient: payment.feesPaidByClient
+        };
 
-      await onSave(payment);
-      toast.success('Pagamento registrado com sucesso!');
+        await onSave(paymentData);
+      }
+      
+      toast.success('Pagamentos registrados com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar pagamento:', error);
-      toast.error('Erro ao registrar pagamento. Tente novamente.');
+      console.error('Erro ao salvar pagamentos:', error);
+      toast.error('Erro ao registrar pagamentos. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -161,11 +205,11 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado', icon: CreditCard }
   ];
 
-  // Calcular valor líquido para exibição (apenas informativo)
-  const { netValue } = calculatePaymentValues();
+  const totals = calculateTotals();
+  const remainingValue = comandaClient.value - totals.totalNet;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="p-4 bg-muted rounded-lg">
         <h4 className="font-medium mb-2">{comandaClient.clientName}</h4>
         <p className="text-sm text-muted-foreground">{comandaClient.description}</p>
@@ -174,88 +218,133 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
         </p>
       </div>
 
-      <div>
-        <Label>Forma de Pagamento</Label>
-        <Select value={formData.method} onValueChange={(value: ComandaPayment['method']) => setFormData(prev => ({ ...prev, method: value }))}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {paymentMethods.map(method => {
-              const Icon = method.icon;
-              return (
-                <SelectItem key={method.value} value={method.value}>
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    {method.label}
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <Label htmlFor="totalValue">Valor Total (R$)</Label>
-        <Input
-          id="totalValue"
-          value={formData.totalValue}
-          onChange={(e) => setFormData(prev => ({ ...prev, totalValue: e.target.value }))}
-          placeholder="0,00"
-        />
-      </div>
-
-      {['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method) && (
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="feesPaidByClient"
-              checked={formData.feesPaidByClient}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, feesPaidByClient: checked }))}
-            />
-            <Label htmlFor="feesPaidByClient" className="text-sm">
-              Cliente paga as taxas
-            </Label>
-          </div>
-
-          {formData.method === 'credito-parcelado' && (
-            <div>
-              <Label htmlFor="installments">Número de Parcelas</Label>
-              <Select value={formData.installments.toString()} onValueChange={(value) => setFormData(prev => ({ ...prev, installments: parseInt(value) }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num}x
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Exibir valor líquido apenas como informação */}
-          <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-            <p className="text-sm text-green-800 dark:text-green-200 font-medium">
-              Valor líquido para o financeiro: {netValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
-            <p className="text-xs text-green-600 dark:text-green-300">
-              {formData.feesPaidByClient 
-                ? 'Cliente paga as taxas - valor integral para o financeiro' 
-                : 'Taxa já aplicada automaticamente'
-              }
-            </p>
-          </div>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium">Formas de Pagamento</h4>
+          <Button type="button" variant="outline" size="sm" onClick={addPaymentMethod}>
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Forma
+          </Button>
         </div>
-      )}
+
+        {payments.map((payment, index) => (
+          <div key={index} className="p-4 border rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+              <h5 className="font-medium text-sm">Pagamento {index + 1}</h5>
+              {payments.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removePaymentMethod(index)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>Forma de Pagamento</Label>
+                <Select 
+                  value={payment.method} 
+                  onValueChange={(value: ComandaPayment['method']) => 
+                    updatePayment(index, { method: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map(method => {
+                      const Icon = method.icon;
+                      return (
+                        <SelectItem key={method.value} value={method.value}>
+                          <div className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            {method.label}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Valor (R$)</Label>
+                <Input
+                  value={payment.value}
+                  onChange={(e) => updatePayment(index, { value: e.target.value })}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+
+            {['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(payment.method) && (
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={payment.feesPaidByClient}
+                    onCheckedChange={(checked) => updatePayment(index, { feesPaidByClient: checked })}
+                  />
+                  <Label className="text-sm">Cliente paga as taxas</Label>
+                </div>
+
+                {payment.method === 'credito-parcelado' && (
+                  <div>
+                    <Label>Número de Parcelas</Label>
+                    <Select 
+                      value={payment.installments.toString()} 
+                      onValueChange={(value) => updatePayment(index, { installments: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => (
+                          <SelectItem key={num} value={num.toString()}>
+                            {num}x
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    Valor líquido: {calculatePaymentValues(payment).netValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Resumo consolidado */}
+      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+        <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Resumo Consolidado</h4>
+        <div className="space-y-1 text-sm">
+          <p className="text-green-700 dark:text-green-300">
+            Total líquido: {totals.totalNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </p>
+          <p className="text-green-700 dark:text-green-300">
+            Valor restante: {remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </p>
+          {remainingValue > 0 && (
+            <p className="text-orange-600 text-xs">
+              ⚠️ Ainda falta receber {remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Registrar Pagamento
+          Registrar Pagamentos
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancelar
@@ -395,7 +484,7 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 }
 
 export function ComandaView() {
-  const { comandas, addComanda, addComandaClient, addComandaPayment } = useApp();
+  const { comandas, addComanda, addComandaClient, addComandaPayment, reopenComanda } = useApp();
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -460,6 +549,24 @@ export function ComandaView() {
     }
   };
 
+  const handleReopenComanda = async (comandaId: string) => {
+    try {
+      await reopenComanda(comandaId);
+      toast.success('Comanda reaberta para edição!');
+    } catch (error) {
+      console.error('Erro ao reabrir comanda:', error);
+      toast.error('Erro ao reabrir comanda. Tente novamente.');
+    }
+  };
+
+  // Função para calcular total pago considerando múltiplos pagamentos
+  const calculateTotalPaid = (client: ComandaClient) => {
+    if (client.payments && client.payments.length > 0) {
+      return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
+    }
+    return client.payment?.netValue || 0;
+  };
+
   const openComandas = comandas.filter(c => c.status === 'aberta');
   const closedComandas = comandas.filter(c => c.status === 'fechada');
 
@@ -515,9 +622,7 @@ export function ComandaView() {
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = comanda.clients
-                .filter(client => client.payment)
-                .reduce((sum, client) => sum + (client.payment?.netValue || 0), 0);
+              const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
               
               return (
                 <Card key={comanda.id}>
@@ -568,41 +673,51 @@ export function ComandaView() {
                     </div>
 
                     <div className="space-y-3">
-                      {comanda.clients.map((client) => (
-                        <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{client.clientName}</p>
-                            <p className="text-sm text-muted-foreground">{client.description}</p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <p className="font-bold">{formatCurrency(client.value)}</p>
-                              {client.payment && (
-                                <p className="text-xs text-green-600">
-                                  Líquido: {formatCurrency(client.payment.netValue)}
+                      {comanda.clients.map((client) => {
+                        const clientTotalPaid = calculateTotalPaid(client);
+                        const hasMultiplePayments = client.payments && client.payments.length > 1;
+                        
+                        return (
+                          <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <p className="font-medium">{client.clientName}</p>
+                              <p className="text-sm text-muted-foreground">{client.description}</p>
+                              {hasMultiplePayments && (
+                                <p className="text-xs text-blue-600">
+                                  {client.payments!.length} formas de pagamento
                                 </p>
                               )}
                             </div>
-                            {client.payment ? (
-                              <Badge variant="outline" className="text-green-600 border-green-600">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Pago
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedClient(client);
-                                  setIsPaymentFormOpen(true);
-                                }}
-                              >
-                                <DollarSign className="h-3 w-3 mr-1" />
-                                Pagar
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <p className="font-bold">{formatCurrency(client.value)}</p>
+                                {clientTotalPaid > 0 && (
+                                  <p className="text-xs text-green-600">
+                                    Líquido: {formatCurrency(clientTotalPaid)}
+                                  </p>
+                                )}
+                              </div>
+                              {client.status === 'finalizado' ? (
+                                <Badge variant="outline" className="text-green-600 border-green-600">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Pago
+                                </Badge>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedClient(client);
+                                    setIsPaymentFormOpen(true);
+                                  }}
+                                >
+                                  <DollarSign className="h-3 w-3 mr-1" />
+                                  {clientTotalPaid > 0 ? 'Completar' : 'Pagar'}
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       
                       <Button
                         variant="outline"
@@ -639,16 +754,14 @@ export function ComandaView() {
       </div>
 
       {/* Comandas Fechadas */}
-      {closedComandas.length > 0 && (
+      {closedComandas.length > 0  && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-muted-foreground">Comandas Fechadas</h3>
           
           <div className="grid gap-4">
             {closedComandas.slice(0, 5).map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = comanda.clients
-                .filter(client => client.payment)
-                .reduce((sum, client) => sum + (client.payment?.netValue || 0), 0);
+              const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
               
               return (
                 <Card key={comanda.id} className="opacity-75">
@@ -662,10 +775,20 @@ export function ComandaView() {
                           {comanda.clients.length} clientes • {formatCurrency(totalPaid)} líquido
                         </p>
                       </div>
-                      <Badge variant="secondary">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Fechada
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleReopenComanda(comanda.id)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Editar
+                        </Button>
+                        <Badge variant="secondary">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Fechada
+                        </Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -691,7 +814,7 @@ export function ComandaView() {
 
       {/* Dialog para registrar pagamento */}
       <Dialog open={isPaymentFormOpen} onOpenChange={setIsPaymentFormOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
           </DialogHeader>

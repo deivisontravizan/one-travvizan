@@ -41,6 +41,7 @@ interface AppContextType {
   addComanda: (comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   addComandaClient: (client: Omit<ComandaClient, 'id' | 'createdAt'>) => Promise<void>;
   addComandaPayment: (payment: Omit<ComandaPayment, 'id' | 'createdAt'>) => Promise<void>;
+  reopenComanda: (comandaId: string) => Promise<void>;
   taxSettings: TaxSettings | null;
   setTaxSettings: (settings: TaxSettings) => void;
   updateTaxSettings: (settings: TaxSettings) => Promise<void>;
@@ -249,6 +250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const newClient: ComandaClient = {
         id: Date.now().toString(),
         ...clientData,
+        payments: [], // Inicializar array de pagamentos
         createdAt: new Date()
       };
       
@@ -274,14 +276,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
       setComandasState(prev => prev.map(comanda => ({
         ...comanda,
-        clients: comanda.clients.map(client => 
-          client.id === paymentData.comandaClientId
-            ? { ...client, payment: newPayment, status: 'finalizado' as const }
-            : client
-        )
+        clients: comanda.clients.map(client => {
+          if (client.id === paymentData.comandaClientId) {
+            const currentPayments = client.payments || [];
+            const updatedPayments = [...currentPayments, newPayment];
+            
+            // Verificar se o valor total dos pagamentos cobre o valor do serviço
+            const totalPaid = updatedPayments.reduce((sum, p) => sum + p.netValue, 0);
+            const isFullyPaid = totalPaid >= client.value;
+            
+            return {
+              ...client,
+              payments: updatedPayments,
+              payment: newPayment, // Manter compatibilidade
+              status: isFullyPaid ? 'finalizado' as const : 'pendente' as const
+            };
+          }
+          return client;
+        })
       })));
     } catch (error) {
       console.error('Erro ao registrar pagamento:', error);
+      throw error;
+    }
+  };
+
+  const reopenComanda = async (comandaId: string) => {
+    try {
+      setComandasState(prev => prev.map(comanda => 
+        comanda.id === comandaId 
+          ? { ...comanda, status: 'aberta' as const }
+          : comanda
+      ));
+    } catch (error) {
+      console.error('Erro ao reabrir comanda:', error);
       throw error;
     }
   };
@@ -445,6 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addComanda,
       addComandaClient,
       addComandaPayment,
+      reopenComanda,
       taxSettings,
       setTaxSettings,
       updateTaxSettings,
