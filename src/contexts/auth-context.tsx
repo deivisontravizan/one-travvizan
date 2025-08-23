@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User as SupabaseUser, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/lib/types';
-import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -12,10 +11,9 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: AuthError }>;
-  signUp: (email: string, password: string, userData: { name: string; studio?: string }) => Promise<{ error?: AuthError }>;
+  signUp: (email: string, password: string, userData: { name: string; role?: string; plan?: string }) => Promise<{ error?: AuthError }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error?: AuthError }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,63 +24,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Buscar ou criar perfil do usuário na tabela tattooers
-  const fetchOrCreateUserProfile = async (supabaseUser: SupabaseUser): Promise<User | null> => {
+  // Carregar perfil do usuário da tabela tattooers
+  const loadUserProfile = async (supabaseUser: SupabaseUser): Promise<User | null> => {
     try {
-      // Primeiro, tentar buscar o perfil existente
-      const { data: existingProfile, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('tattooers')
         .select('*')
         .eq('id', supabaseUser.id)
         .single();
 
-      if (existingProfile && !fetchError) {
-        return {
-          id: existingProfile.id,
-          name: existingProfile.name,
-          email: existingProfile.email,
-          role: existingProfile.role,
-          plan: existingProfile.plan,
-          avatar: existingProfile.avatar,
-          studio: existingProfile.studio
-        };
-      }
-
-      // Se não existe, criar novo perfil
-      const { data: newProfile, error: createError } = await supabase
-        .from('tattooers')
-        .insert({
-          id: supabaseUser.id,
-          name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'Usuário',
-          email: supabaseUser.email || '',
-          role: 'tatuador',
-          plan: 'solo',
-          studio: supabaseUser.user_metadata?.studio || null
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Erro ao criar perfil:', createError);
+      if (error) {
+        console.error('Erro ao carregar perfil:', error);
         return null;
       }
 
       return {
-        id: newProfile.id,
-        name: newProfile.name,
-        email: newProfile.email,
-        role: newProfile.role,
-        plan: newProfile.plan,
-        avatar: newProfile.avatar,
-        studio: newProfile.studio
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        plan: data.plan,
+        avatar: data.avatar,
+        studio: data.studio
       };
     } catch (error) {
-      console.error('Erro ao buscar/criar perfil:', error);
+      console.error('Erro ao carregar perfil do usuário:', error);
       return null;
     }
   };
 
-  // Monitorar mudanças na autenticação
+  // Criar perfil na tabela tattooers após signup
+  const createUserProfile = async (supabaseUser: SupabaseUser, userData: { name: string; role?: string; plan?: string }): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('tattooers')
+        .insert({
+          id: supabaseUser.id,
+          name: userData.name,
+          email: supabaseUser.email!,
+          role: userData.role || 'tatuador',
+          plan: userData.plan || 'solo'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao criar perfil:', error);
+        return null;
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        plan: data.plan,
+        avatar: data.avatar,
+        studio: data.studio
+      };
+    } catch (error) {
+      console.error('Erro ao criar perfil do usuário:', error);
+      return null;
+    }
+  };
+
+  // Monitorar mudanças de autenticação
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email);
@@ -91,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSupabaseUser(session?.user || null);
 
       if (session?.user) {
-        // Usuário logado - buscar perfil
-        const userProfile = await fetchOrCreateUserProfile(session.user);
+        // Usuário logado - carregar perfil
+        const userProfile = await loadUserProfile(session.user);
         setUser(userProfile);
       } else {
         // Usuário deslogado
@@ -105,34 +111,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Função de login
+  // Verificar sessão inicial
+  useEffect(() => {
+    const getInitialSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Erro ao obter sessão:', error);
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user) {
+        setSession(session);
+        setSupabaseUser(session.user);
+        const userProfile = await loadUserProfile(session.user);
+        setUser(userProfile);
+      }
+      
+      setLoading(false);
+    };
+
+    getInitialSession();
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
         console.error('Erro no login:', error);
-        toast.error('Erro ao fazer login: ' + error.message);
         return { error };
       }
 
-      toast.success('Login realizado com sucesso!');
-      return { error: undefined };
+      return {};
     } catch (error) {
-      console.error('Erro inesperado no login:', error);
-      toast.error('Erro inesperado ao fazer login');
+      console.error('Erro no login:', error);
       return { error: error as AuthError };
     } finally {
       setLoading(false);
     }
   };
 
-  // Função de cadastro
-  const signUp = async (email: string, password: string, userData: { name: string; studio?: string }) => {
+  const signUp = async (email: string, password: string, userData: { name: string; role?: string; plan?: string }) => {
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signUp({
@@ -141,34 +166,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           data: {
             name: userData.name,
-            studio: userData.studio
+            role: userData.role || 'tatuador',
+            plan: userData.plan || 'solo'
           }
         }
       });
 
       if (error) {
         console.error('Erro no cadastro:', error);
-        toast.error('Erro ao criar conta: ' + error.message);
         return { error };
       }
 
-      if (data.user && !data.session) {
-        toast.success('Conta criada! Verifique seu email para confirmar.');
-      } else {
-        toast.success('Conta criada com sucesso!');
+      // Se o usuário foi criado, criar perfil na tabela tattooers
+      if (data.user) {
+        await createUserProfile(data.user, userData);
       }
 
-      return { error: undefined };
+      return {};
     } catch (error) {
-      console.error('Erro inesperado no cadastro:', error);
-      toast.error('Erro inesperado ao criar conta');
+      console.error('Erro no cadastro:', error);
       return { error: error as AuthError };
     } finally {
       setLoading(false);
     }
   };
 
-  // Função de logout
   const signOut = async () => {
     try {
       setLoading(true);
@@ -176,78 +198,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (error) {
         console.error('Erro no logout:', error);
-        toast.error('Erro ao fazer logout');
-      } else {
-        toast.success('Logout realizado com sucesso!');
+        throw error;
       }
+
+      setUser(null);
+      setSupabaseUser(null);
+      setSession(null);
     } catch (error) {
-      console.error('Erro inesperado no logout:', error);
-      toast.error('Erro inesperado ao fazer logout');
+      console.error('Erro no logout:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Atualizar perfil
   const updateProfile = async (updates: Partial<User>) => {
     if (!user) return;
 
     try {
-      setLoading(true);
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('tattooers')
         .update({
           name: updates.name,
+          role: updates.role,
+          plan: updates.plan,
           avatar: updates.avatar,
           studio: updates.studio,
-          plan: updates.plan,
-          role: updates.role
+          updated_at: new Date().toISOString()
         })
-        .eq('id', user.id)
-        .select()
-        .single();
+        .eq('id', user.id);
 
       if (error) {
         console.error('Erro ao atualizar perfil:', error);
-        toast.error('Erro ao atualizar perfil');
-        return;
+        throw error;
       }
 
       // Atualizar estado local
-      setUser({
-        ...user,
-        ...updates
-      });
-
-      toast.success('Perfil atualizado com sucesso!');
+      setUser(prev => prev ? { ...prev, ...updates } : null);
     } catch (error) {
-      console.error('Erro inesperado ao atualizar perfil:', error);
-      toast.error('Erro inesperado ao atualizar perfil');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Reset de senha
-  const resetPassword = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
-
-      if (error) {
-        console.error('Erro ao resetar senha:', error);
-        toast.error('Erro ao enviar email de recuperação');
-        return { error };
-      }
-
-      toast.success('Email de recuperação enviado!');
-      return { error: undefined };
-    } catch (error) {
-      console.error('Erro inesperado ao resetar senha:', error);
-      toast.error('Erro inesperado ao resetar senha');
-      return { error: error as AuthError };
+      console.error('Erro ao atualizar perfil:', error);
+      throw error;
     }
   };
 
@@ -260,8 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
-      updateProfile,
-      resetPassword
+      updateProfile
     }}>
       {children}
     </AuthContext.Provider>

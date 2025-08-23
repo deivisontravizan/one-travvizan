@@ -636,7 +636,7 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
     return {
       id: data.id,
       date: new Date(data.comanda_date),
-      tattooerId: data.tattooerid,
+      tattoo erId: data.tattooerid,
       openingValue: data.opening_value,
       closingValue: data.closing_value,
       status: data.status,
