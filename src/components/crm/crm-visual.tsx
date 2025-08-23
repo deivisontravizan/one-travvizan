@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import {ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/contexts/app-context';
 import { Client, PeriodMetrics } from '@/lib/types';
 import { NewLeadDialog, ConvertToClientDialog } from './lead-form';
@@ -27,7 +28,9 @@ import {
   GripVertical,
   Loader2,
   UserPlus,
-  CheckCircle
+  CheckCircle,
+  Filter,
+  X
 } from 'lucide-react';
 
 const columns = [
@@ -56,16 +59,10 @@ const columns = [
     description: 'Sessão confirmada'
   },
   { 
-    id: 'cliente-fidelizado', 
-    title: 'Fidelizado', 
-    color: 'bg-purple-500',
-    description: 'Cliente recorrente'
-  },
-  { 
-    id: 'cancelado', 
-    title: 'Perdido', 
+    id: 'desqualificado', 
+    title: 'Desqualificado', 
     color: 'bg-red-500',
-    description: 'Negócio não fechado'
+    description: 'Lead não qualificado'
   }
 ];
 
@@ -173,9 +170,12 @@ function ClientCard({ client, onStatusChange, onConvertToClient, index }: Client
                     <Badge variant="outline" className="text-xs">
                       {client.style}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {Math.floor((new Date().getTime() - client.updatedAt.getTime()) / (1000 * 60 * 60 * 24))}d
-                    </span>
+                    <div className="text-xs text-muted-foreground text-right">
+                      <div>{Math.floor((new Date().getTime() - client.updatedAt.getTime()) / (1000 * 60 * 60 * 24))}d</div>
+                      <div className="text-xs opacity-75">
+                        {client.createdAt.toLocaleDateString('pt-BR')}
+                      </div>
+                    </div>
                   </div>
                   
                   {client.tags.includes('lead-quente') && (
@@ -225,6 +225,12 @@ function ClientCard({ client, onStatusChange, onConvertToClient, index }: Client
               <div>
                 <label className="text-sm font-medium">Estilo</label>
                 <p className="text-sm text-muted-foreground">{client.style}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Data de Criação</label>
+                <p className="text-sm text-muted-foreground">
+                  {client.createdAt.toLocaleDateString('pt-BR')}
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium">Último Contato</label>
@@ -322,6 +328,10 @@ export function CRMVisual() {
     };
   });
 
+  // Estados para filtros adicionais
+  const [statusFilter, setStatusFilter] = useState<Client['status'] | 'all'>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
+
   // Obter clientes do período selecionado
   const periodClients = useMemo(() => {
     return getClientsByPeriod(
@@ -331,14 +341,34 @@ export function CRMVisual() {
     );
   }, [selectedPeriod, getClientsByPeriod]);
 
+  // Aplicar filtros adicionais
+  const filteredClients = useMemo(() => {
+    let clients = [...periodClients];
+
+    // Filtro por status específico
+    if (statusFilter !== 'all') {
+      clients = clients.filter(client => client.status === statusFilter);
+    }
+
+    // Filtro por mês de criação
+    if (monthFilter !== 'all') {
+      clients = clients.filter(client => {
+        const clientMonth = client.createdAt.toISOString().slice(0, 7); // YYYY-MM
+        return clientMonth === monthFilter;
+      });
+    }
+
+    return clients;
+  }, [periodClients, statusFilter, monthFilter]);
+
   // Calcular métricas do período
   const periodMetrics = useMemo((): PeriodMetrics => {
-    const totalLeads = periodClients.length;
-    const leadsInFollowUp = periodClients.filter(c => 
+    const totalLeads = filteredClients.length;
+    const leadsInFollowUp = filteredClients.filter(c => 
       ['em-conversa', 'orcamento-enviado'].includes(c.status)
     ).length;
-    const leadsClosed = periodClients.filter(c => 
-      ['agendamento-realizado', 'cliente-fidelizado'].includes(c.status)
+    const leadsClosed = filteredClients.filter(c => 
+      c.status === 'agendamento-realizado'
     ).length;
     const conversionRate = totalLeads > 0 ? (leadsClosed / totalLeads) * 100 : 0;
 
@@ -348,7 +378,7 @@ export function CRMVisual() {
       leadsClosed,
       conversionRate
     };
-  }, [periodClients]);
+  }, [filteredClients]);
 
   const handleStatusChange = async (clientId: string, newStatus: Client['status']) => {
     try {
@@ -361,10 +391,10 @@ export function CRMVisual() {
 
   const handleConvertToClient = async (clientId: string) => {
     try {
-      // Remove a tag de lead e muda status para cliente fidelizado
-      const client = periodClients.find(c => c.id === clientId);
+      // Remove a tag de lead e muda status para agendado (mantém no CRM)
+      const client = filteredClients.find(c => c.id === clientId);
       if (client) {
-        await updateClientStatus(clientId, 'cliente-fidelizado');
+        await updateClientStatus(clientId, 'agendamento-realizado');
         toast.success('Lead convertido para cliente com sucesso!');
       }
     } catch (error) {
@@ -392,15 +422,32 @@ export function CRMVisual() {
   };
 
   const getClientsByStatus = (status: Client['status']) => {
-    return periodClients.filter(client => client.status === status);
+    return filteredClients.filter(client => client.status === status);
   };
 
-  const urgentClients = periodClients.filter(client => {
+  const urgentClients = filteredClients.filter(client => {
     const daysSinceUpdate = Math.floor(
       (new Date().getTime() - client.updatedAt.getTime()) / (1000 * 60 * 60 * 24)
     );
-    return daysSinceUpdate > 3 && !['cliente-fidelizado', 'cancelado'].includes(client.status);
+    return daysSinceUpdate > 3 && !['desqualificado'].includes(client.status);
   }).length;
+
+  // Gerar opções de mês para o filtro
+  const getMonthOptions = () => {
+    const months = new Set<string>();
+    periodClients.forEach(client => {
+      const month = client.createdAt.toISOString().slice(0, 7);
+      months.add(month);
+    });
+    return Array.from(months).sort().reverse();
+  };
+
+  const clearFilters = () => {
+    setStatusFilter('all');
+    setMonthFilter('all');
+  };
+
+  const hasActiveFilters = statusFilter !== 'all' || monthFilter !== 'all';
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -425,6 +472,80 @@ export function CRMVisual() {
         onPeriodChange={setSelectedPeriod}
         metrics={periodMetrics}
       />
+
+      {/* Filtros Adicionais para Follow-up */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-medium">Filtros para Follow-up</h3>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-6 px-2"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              {/* Filtros rápidos por status */}
+              <Button
+                variant={statusFilter === 'em-conversa' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter(statusFilter === 'em-conversa' ? 'all' : 'em-conversa')}
+              >
+                Em Conversa ({periodClients.filter(c => c.status === 'em-conversa').length})
+              </Button>
+              
+              <Button
+                variant={statusFilter === 'orcamento-enviado' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter(statusFilter === 'orcamento-enviado' ? 'all' : 'orcamento-enviado')}
+              >
+                Orçamento Enviado ({periodClients.filter(c => c.status === 'orcamento-enviado').length})
+              </Button>
+
+              {/* Filtro por mês */}
+              <Select value={monthFilter} onValueChange={setMonthFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filtrar por mês de criação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os meses</SelectItem>
+                  {getMonthOptions().map(month => {
+                    const [year, monthNum] = month.split('-');
+                    const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('pt-BR', { 
+                      month: 'long', 
+                      year: 'numeric' 
+                    });
+                    const count = periodClients.filter(c => c.createdAt.toISOString().slice(0, 7) === month).length;
+                    return (
+                      <SelectItem key={month} value={month}>
+                        {monthName} ({count})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="text-sm text-muted-foreground">
+                
+                Mostrando {filteredClients.length} de {periodClients.length} leads
+                {statusFilter !== 'all' && ` • Status: ${columns.find(c => c.id === statusFilter)?.title}`}
+                {monthFilter !== 'all' && ` • Mês: ${new Date(monthFilter + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Funil de Vendas - Mobile com scroll horizontal */}
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -494,7 +615,7 @@ export function CRMVisual() {
         </div>
 
         {/* Desktop Grid */}
-        <div className="hidden lg:grid lg:grid-cols-6 gap-4">
+        <div className="hidden lg:grid lg:grid-cols-5 gap-4">
           {columns.map((column) => {
             const columnClients = getClientsByStatus(column.id as Client['status']);
             const potentialValue = columnClients.reduce((sum, client) => sum + (client.totalPaid || 500), 0);
@@ -581,10 +702,10 @@ export function CRMVisual() {
             <UserPlus className="h-4 w-4 text-blue-600" />
             <div>
               <p className="font-medium text-blue-800 dark:text-blue-200 text-sm lg:text-base">
-                💡 Dica: Acompanhe leads por semana e mantenha histórico completo
+                💡 Dica: Use os filtros para follow-up rápido de leads em conversa e orçamentos enviados
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-300">
-                Use os filtros de período para navegar entre semanas e analisar performance histórica.
+                Os filtros por período e status ajudam a localizar rapidamente leads que precisam de atenção.
               </p>
             </div>
           </div>

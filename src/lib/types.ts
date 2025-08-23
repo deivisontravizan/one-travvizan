@@ -19,7 +19,7 @@ export interface Client {
   observations: string;
   sessions: Session[];
   totalPaid: number;
-  status: 'novo-contato' | 'em-conversa' | 'orcamento-enviado' | 'agendamento-realizado' | 'cliente-fidelizado' | 'cancelado';
+  status: 'novo-contato' | 'em-conversa' | 'orcamento-enviado' | 'agendamento-realizado' | 'desqualificado';
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
