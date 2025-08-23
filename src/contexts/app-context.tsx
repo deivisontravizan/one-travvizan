@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Client, Session, Goal, Transaction, Comanda, ComandaClient, ComandaPayment, TaxSettings, ClientWeekMovement } from '@/lib/types';
 import { getCurrentWeekPeriod, getISOWeek, getISOWeekYear } from '@/lib/week-utils';
+import { useAuth } from '@/contexts/auth-context';
 import { 
   getClients, 
   createClient, 
@@ -15,12 +16,15 @@ import {
   getGoals,
   createOrUpdateGoal,
   getTaxSettings,
-  createOrUpdateTaxSettings
+  createOrUpdateTaxSettings,
+  getComandas,
+  createComanda,
+  createComandaClient,
+  createComandaPayment,
+  updateComandaStatus
 } from '@/lib/database';
 
 interface AppContextType {
-  user: User | null;
-  setUser: (user: User | null) => void;
   clients: Client[];
   setClients: (clients: Client[]) => void;
   addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => Promise<void>;
@@ -58,15 +62,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>({
-    id: '1',
-    name: 'João Silva',
-    email: 'joao@exemplo.com',
-    role: 'tatuador',
-    plan: 'solo',
-    studio: 'Studio Ink'
-  });
-
+  const { user } = useAuth();
+  
   const [clients, setClients] = useState<Client[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -74,66 +71,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [comandas, setComandasState] = useState<Comanda[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Carregar dados do banco ao inicializar
+  // Carregar dados do banco quando usuário estiver autenticado
   const loadData = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const [clientsData, sessionsData, goalsData, transactionsData, taxSettingsData] = await Promise.all([
+      console.log('Carregando dados para usuário:', user.email);
+      
+      const [clientsData, sessionsData, goalsData, transactionsData, taxSettingsData, comandasData] = await Promise.all([
         getClients(),
         getSessions(),
         getGoals(),
         getTransactions(),
-        getTaxSettings()
+        getTaxSettings(),
+        getComandas()
       ]);
+
+      console.log('Dados carregados:', {
+        clients: clientsData.length,
+        sessions: sessionsData.length,
+        goals: goalsData.length,
+        transactions: transactionsData.length,
+        comandas: comandasData.length
+      });
 
       setClients(clientsData);
       setSessions(sessionsData);
       
       // Garantir que as metas tenham todos os campos obrigatórios
-      const goalsWithDefaults: Goal[] = (goalsData as any[]).map((goal: any) => ({
-        id: goal.id || Date.now().toString(),
-        tattooerId: goal.tattooerId || '1',
-        month: goal.month || new Date().toISOString().slice(0, 7),
-        target: goal.target || 0,
-        current: goal.current || 0,
-        percentage: goal.percentage || 0,
+      const goalsWithDefaults: Goal[] = goalsData.map((goal: any) => ({
+        id: goal.id,
+        tattooerId: goal.tattooerId,
+        month: goal.month,
+        target: goal.target,
+        current: goal.current,
+        percentage: goal.percentage,
         availableDays: goal.availableDays || 22,
         desiredTicketAverage: goal.desiredTicketAverage,
         expectedConversion: goal.expectedConversion,
-        createdAt: goal.createdAt || new Date(),
-        updatedAt: goal.updatedAt || new Date()
+        createdAt: goal.createdAt,
+        updatedAt: goal.updatedAt
       }));
       setGoals(goalsWithDefaults);
       
       setTransactions(transactionsData);
+      setComandasState(comandasData);
       
-      // Garantir que taxSettings tenha a estrutura completa
+      // Configurar taxSettings com estrutura completa
       if (taxSettingsData) {
-        const taxSettingsWithDefaults: TaxSettings = {
-          id: (taxSettingsData as any).id || Date.now().toString(),
-          tattooerId: (taxSettingsData as any).tattooerId || '1',
-          creditCardCashRate: (taxSettingsData as any).creditCardCashRate || 3.5,
-          creditCardInstallmentRate: (taxSettingsData as any).creditCardInstallmentRate || 4.5,
-          debitCardRate: (taxSettingsData as any).debitCardRate || 2.5,
-          pixRate: (taxSettingsData as any).pixRate || 0,
-          installmentRates: (taxSettingsData as any).installmentRates || {
-            twoInstallments: 4.0,
-            threeInstallments: 4.5,
-            fourInstallments: 5.0,
-            fiveInstallments: 5.5,
-            sixInstallments: 6.0,
-            sevenInstallments: 6.5,
-            eightInstallments: 7.0,
-            nineInstallments: 7.5,
-            tenInstallments: 8.0,
-            elevenInstallments: 8.5,
-            twelveInstallments: 9.0
-          },
-          updatedAt: (taxSettingsData as any).updatedAt || new Date()
-        };
-        setTaxSettings(taxSettingsWithDefaults);
+        setTaxSettings(taxSettingsData);
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -146,9 +135,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await loadData();
   };
 
+  // Carregar dados quando usuário mudar
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    } else {
+      // Limpar dados quando usuário deslogar
+      setClients([]);
+      setSessions([]);
+      setGoals([]);
+      setTransactions([]);
+      setComandasState([]);
+      setTaxSettings(null);
+    }
+  }, [user]);
 
   // Funções para clientes
   const addClient = async (clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>) => {
@@ -231,13 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Funções para comandas
   const addComanda = async (comandaData: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      // Simular criação de comanda (substituir por função real do database)
-      const newComanda: Comanda = {
-        id: Date.now().toString(),
-        ...comandaData,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const newComanda = await createComanda(comandaData);
       setComandasState(prev => [newComanda, ...prev]);
     } catch (error) {
       console.error('Erro ao criar comanda:', error);
@@ -247,13 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addComandaClient = async (clientData: Omit<ComandaClient, 'id' | 'createdAt'>) => {
     try {
-      // Simular criação de cliente da comanda (substituir por função real do database)
-      const newClient: ComandaClient = {
-        id: Date.now().toString(),
-        ...clientData,
-        payments: [], // Inicializar array de pagamentos
-        createdAt: new Date()
-      };
+      const newClient = await createComandaClient(clientData);
       
       setComandasState(prev => prev.map(comanda => 
         comanda.id === clientData.comandaId 
@@ -268,12 +256,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addComandaPayment = async (paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>) => {
     try {
-      // Simular criação de pagamento (substituir por função real do database)
-      const newPayment: ComandaPayment = {
-        id: Date.now().toString(),
-        ...paymentData,
-        createdAt: new Date()
-      };
+      const newPayment = await createComandaPayment(paymentData);
       
       setComandasState(prev => prev.map(comanda => ({
         ...comanda,
@@ -304,6 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const reopenComanda = async (comandaId: string) => {
     try {
+      await updateComandaStatus(comandaId, 'aberta');
       setComandasState(prev => prev.map(comanda => 
         comanda.id === comandaId 
           ? { ...comanda, status: 'aberta' as const }
@@ -317,6 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const closeComanda = async (comandaId: string) => {
     try {
+      await updateComandaStatus(comandaId, 'fechada');
       setComandasState(prev => prev.map(comanda => 
         comanda.id === comandaId 
           ? { ...comanda, status: 'fechada' as const }
@@ -332,39 +317,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateGoal = async (goalData: Omit<Goal, 'id'>) => {
     try {
       const updatedGoal = await createOrUpdateGoal(goalData);
-      const updatedGoalAny = updatedGoal as any;
       
       setGoals(prev => {
         const existingIndex = prev.findIndex(g => g.month === goalData.month);
         if (existingIndex >= 0) {
           const newGoals = [...prev];
           newGoals[existingIndex] = {
-            id: updatedGoalAny.id || prev[existingIndex].id,
-            tattooerId: updatedGoalAny.tattooerId || prev[existingIndex].tattooerId,
-            month: updatedGoalAny.month || prev[existingIndex].month,
-            target: updatedGoalAny.target || prev[existingIndex].target,
-            current: updatedGoalAny.current || prev[existingIndex].current,
-            percentage: updatedGoalAny.percentage || prev[existingIndex].percentage,
-            availableDays: updatedGoalAny.availableDays || prev[existingIndex].availableDays || 22,
-            desiredTicketAverage: updatedGoalAny.desiredTicketAverage,
-            expectedConversion: updatedGoalAny.expectedConversion,
-            createdAt: updatedGoalAny.createdAt || prev[existingIndex].createdAt || new Date(),
-            updatedAt: updatedGoalAny.updatedAt || new Date()
+            ...updatedGoal,
+            availableDays: goalData.availableDays || 22,
+            desiredTicketAverage: goalData.desiredTicketAverage,
+            expectedConversion: goalData.expectedConversion
           };
           return newGoals;
         } else {
           return [{
-            id: updatedGoalAny.id || Date.now().toString(),
-            tattooerId: updatedGoalAny.tattooerId || '1',
-            month: updatedGoalAny.month || new Date().toISOString().slice(0, 7),
-            target: updatedGoalAny.target || 0,
-            current: updatedGoalAny.current || 0,
-            percentage: updatedGoalAny.percentage || 0,
-            availableDays: updatedGoalAny.availableDays || 22,
-            desiredTicketAverage: updatedGoalAny.desiredTicketAverage,
-            expectedConversion: updatedGoalAny.expectedConversion,
-            createdAt: updatedGoalAny.createdAt || new Date(),
-            updatedAt: updatedGoalAny.updatedAt || new Date()
+            ...updatedGoal,
+            availableDays: goalData.availableDays || 22,
+            desiredTicketAverage: goalData.desiredTicketAverage,
+            expectedConversion: goalData.expectedConversion
           }, ...prev];
         }
       });
@@ -378,18 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateTaxSettings = async (settings: TaxSettings) => {
     try {
       const updatedSettings = await createOrUpdateTaxSettings(settings);
-      // Garantir que o objeto retornado tenha a estrutura completa
-      const settingsWithDefaults: TaxSettings = {
-        id: (updatedSettings as any).id || settings.id,
-        tattooerId: (updatedSettings as any).tattooerId || settings.tattooerId,
-        creditCardCashRate: (updatedSettings as any).creditCardCashRate || settings.creditCardCashRate,
-        creditCardInstallmentRate: (updatedSettings as any).creditCardInstallmentRate || settings.creditCardInstallmentRate,
-        debitCardRate: (updatedSettings as any).debitCardRate || settings.debitCardRate,
-        pixRate: (updatedSettings as any).pixRate || settings.pixRate,
-        installmentRates: (updatedSettings as any).installmentRates || settings.installmentRates,
-        updatedAt: (updatedSettings as any).updatedAt || settings.updatedAt
-      };
-      setTaxSettings(settingsWithDefaults);
+      setTaxSettings(updatedSettings);
     } catch (error) {
       console.error('Erro ao atualizar configurações de taxa:', error);
       throw error;
@@ -454,7 +413,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return client;
       }));
 
-      // TODO: Salvar no banco de dados
+      // TODO: Salvar no banco de dados quando implementar tabela de movimentações
       console.log('Movimentação registrada:', movement);
       
     } catch (error) {
@@ -465,8 +424,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      user,
-      setUser,
       clients,
       setClients,
       addClient,

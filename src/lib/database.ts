@@ -1,19 +1,29 @@
 import { supabase } from './supabase';
 import { Client, Session, Transaction, Goal, TaxSettings, Comanda, ComandaClient, ComandaPayment } from './types';
 
+// Função para obter o ID do usuário atual
+const getCurrentUserId = async (): Promise<string | null> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || null;
+};
+
 // ==================== CLIENTES ====================
 
 export async function getClients(): Promise<Client[]> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('clients')
       .select('*')
+      .eq('tattooerid', userId)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     
     return data?.map(client => ({
-      id: client.id,
+      i: client.id,
       name: client.name,
       whatsapp: client.whatsapp,
       instagram: client.instagram,
@@ -36,13 +46,13 @@ export async function getClients(): Promise<Client[]> {
 
 export async function createClient(client: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'sessions'>): Promise<Client> {
   try {
-    // Obter usuário atual (temporário - será substituído por auth real)
-    const currentUserId = '1'; // TODO: pegar do contexto de auth
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
     
     const { data, error } = await supabase
       .from('clients')
       .insert({
-        tattooerid: currentUserId,
+        tattooerid: userId,
         name: client.name,
         whatsapp: client.whatsapp,
         instagram: client.instagram,
@@ -83,6 +93,9 @@ export async function createClient(client: Omit<Client, 'id' | 'createdAt' | 'up
 
 export async function updateClient(id: string, updates: Partial<Client>): Promise<Client> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
@@ -102,6 +115,7 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
       .from('clients')
       .update(updateData)
       .eq('id', id)
+      .eq('tattooerid', userId) // Garantir que só atualiza próprios clientes
       .select()
       .single();
     
@@ -131,10 +145,14 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
 
 export async function deleteClient(id: string): Promise<void> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { error } = await supabase
       .from('clients')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tattooerid', userId); // Garantir que só deleta próprios clientes
     
     if (error) throw error;
   } catch (error) {
@@ -147,9 +165,13 @@ export async function deleteClient(id: string): Promise<void> {
 
 export async function getSessions(): Promise<Session[]> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('sessions')
       .select('*')
+      .eq('tattooerid', userId)
       .order('session_date', { ascending: true });
     
     if (error) throw error;
@@ -173,11 +195,14 @@ export async function getSessions(): Promise<Session[]> {
 
 export async function createSession(session: Omit<Session, 'id'>): Promise<Session> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('sessions')
       .insert({
         client_id: session.clientId,
-        tattooerid: session.tattooerId,
+        tattooerid: userId,
         session_date: session.date.toISOString(),
         duration: session.duration,
         value: session.value,
@@ -209,6 +234,9 @@ export async function createSession(session: Omit<Session, 'id'>): Promise<Sessi
 
 export async function updateSession(id: string, updates: Partial<Session>): Promise<Session> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
@@ -225,6 +253,7 @@ export async function updateSession(id: string, updates: Partial<Session>): Prom
       .from('sessions')
       .update(updateData)
       .eq('id', id)
+      .eq('tattooerid', userId)
       .select()
       .single();
     
@@ -251,9 +280,13 @@ export async function updateSession(id: string, updates: Partial<Session>): Prom
 
 export async function getTransactions(): Promise<Transaction[]> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
+      .eq('tattooerid', userId)
       .order('transaction_date', { ascending: false });
     
     if (error) throw error;
@@ -281,10 +314,13 @@ export async function getTransactions(): Promise<Transaction[]> {
 
 export async function createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('transactions')
       .insert({
-        tattooerid: transaction.tattooerId,
+        tattooerid: userId,
         type: transaction.type,
         description: transaction.description,
         value: transaction.value,
@@ -327,9 +363,13 @@ export async function createTransaction(transaction: Omit<Transaction, 'id'>): P
 
 export async function getGoals(): Promise<Goal[]> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('goals')
       .select('*')
+      .eq('tattooerid', userId)
       .order('month', { ascending: false });
     
     if (error) throw error;
@@ -353,10 +393,13 @@ export async function getGoals(): Promise<Goal[]> {
 
 export async function createOrUpdateGoal(goal: Omit<Goal, 'id'>): Promise<Goal> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('goals')
       .upsert({
-        tattooerid: goal.tattooerId,
+        tattooerid: userId,
         month: goal.month,
         target: goal.target,
         current_value: goal.current,
@@ -391,12 +434,13 @@ export async function createOrUpdateGoal(goal: Omit<Goal, 'id'>): Promise<Goal> 
 
 export async function getTaxSettings(): Promise<TaxSettings | null> {
   try {
-    const currentUserId = '1'; // TODO: pegar do contexto de auth
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
     
     const { data, error } = await supabase
       .from('tax_settings')
       .select('*')
-      .eq('tattooerid', currentUserId)
+      .eq('tattooerid', userId)
       .single();
     
     if (error && error.code !== 'PGRST116') throw error;
@@ -433,10 +477,13 @@ export async function getTaxSettings(): Promise<TaxSettings | null> {
 
 export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<TaxSettings> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('tax_settings')
       .upsert({
-        tattooerid: settings.tattooerId,
+        tattooerid: userId,
         credit_card_cash_rate: settings.creditCardCashRate,
         credit_card_installment_rate: settings.creditCardInstallmentRate,
         debit_card_rate: settings.debitCardRate,
@@ -470,6 +517,9 @@ export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<
 
 export async function getComandas(): Promise<Comanda[]> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data: comandasData, error: comandasError } = await supabase
       .from('comandas')
       .select(`
@@ -479,6 +529,7 @@ export async function getComandas(): Promise<Comanda[]> {
           comanda_payments (*)
         )
       `)
+      .eq('tattooerid', userId)
       .order('comanda_date', { ascending: false });
     
     if (comandasError) throw comandasError;
@@ -523,10 +574,13 @@ export async function getComandas(): Promise<Comanda[]> {
 
 export async function createComanda(comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>): Promise<Comanda> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { data, error } = await supabase
       .from('comandas')
       .insert({
-        tattooerid: comanda.tattooerId,
+        tattooerid: userId,
         comanda_date: comanda.date.toISOString().split('T')[0], // Apenas a data
         opening_value: comanda.openingValue,
         closing_value: comanda.closingValue,
@@ -627,13 +681,17 @@ export async function createComandaPayment(payment: Omit<ComandaPayment, 'id' | 
 
 export async function updateComandaStatus(id: string, status: 'aberta' | 'fechada'): Promise<void> {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Usuário não autenticado');
+
     const { error } = await supabase
       .from('comandas')
       .update({ 
         status,
         updated_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tattooerid', userId);
     
     if (error) throw error;
   } catch (error) {

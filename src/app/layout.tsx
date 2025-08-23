@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
-import { Toaster } from "sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/contexts/auth-context";
+import { AppProvider } from "@/contexts/app-context";
+import { ProtectedRoute } from "@/components/auth/protected-route";
+import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "./fonts/GeistVF.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
 });
-
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMonoVF.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
-  title: "One Travizan - Sistema de Gestão para Tatuadores",
-  description: "Sistema completo de gestão para estúdios de tatuagem",
+  title: "Tattoo Studio Manager",
+  description: "Sistema completo para gestão de estúdios de tatuagem",
 };
 
 export default function RootLayout({
@@ -25,24 +28,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster 
-            position="top-right"
-            richColors
-            closeButton
-            duration={4000}
-          />
-        </ThemeProvider>
+        <AuthProvider>
+          <ProtectedRoute>
+            <AppProvider>
+              {children}
+              <Toaster />
+            </AppProvider>
+          </ProtectedRoute>
+        </AuthProvider>
       </body>
     </html>
   );
