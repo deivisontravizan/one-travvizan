@@ -115,7 +115,7 @@ function Dashboard() {
 
   // Calcular métricas
   const today = new Date();
-  const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const thisMonth = `${today.getFullYear()}-${String(today.get Month() + 1).padStart(2, '0')}`;
   
   const todaySessions = sessions.filter(session => {
     const sessionDate = new Date(session.date);
