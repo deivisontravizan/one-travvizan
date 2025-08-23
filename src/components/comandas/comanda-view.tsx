@@ -19,7 +19,6 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Calculator,
   CreditCard,
   Banknote,
   Smartphone,
@@ -37,17 +36,14 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     method: 'dinheiro' as ComandaPayment['method'],
-    grossValue: comandaClient.value.toString(),
-    netValue: comandaClient.value.toString(),
-    fees: '0',
+    totalValue: comandaClient.value.toString(),
     installments: 1,
     feesPaidByClient: false
   });
 
-  // Usar taxas das configurações ou valores padrão
+  // Função para obter taxa configurada (invisível ao usuário)
   const getCardRate = (method: string, installments?: number) => {
     if (!taxSettings) {
-      // Valores padrão caso não haja configurações
       const defaultRates = {
         'credito-vista': 3.5,
         'credito-parcelado': 4.5,
@@ -94,41 +90,40 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     }
   };
 
-  const calculateFees = () => {
-    const grossValue = parseFloat(formData.grossValue.replace(',', '.'));
-    if (isNaN(grossValue)) return;
+  // Calcular valores automaticamente (invisível ao usuário)
+  const calculatePaymentValues = () => {
+    const totalValue = parseFloat(formData.totalValue.replace(',', '.'));
+    if (isNaN(totalValue)) return { grossValue: 0, netValue: 0, fees: 0 };
 
     let rate = 0;
     if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method)) {
       rate = getCardRate(formData.method, formData.installments);
     }
 
-    const fees = (grossValue * rate) / 100;
-    const netValue = formData.feesPaidByClient ? grossValue : grossValue - fees;
+    let grossValue: number;
+    let netValue: number;
+    let fees: number;
 
-    setFormData(prev => ({
-      ...prev,
-      fees: fees.toFixed(2),
-      netValue: netValue.toFixed(2)
-    }));
-  };
-
-  React.useEffect(() => {
-    if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method)) {
-      calculateFees();
+    if (formData.feesPaidByClient) {
+      // Cliente paga as taxas: valor informado é o valor bruto
+      grossValue = totalValue;
+      fees = (grossValue * rate) / 100;
+      netValue = grossValue - fees;
     } else {
-      setFormData(prev => ({
-        ...prev,
-        fees: '0',
-        netValue: prev.grossValue
-      }));
+      // Tatuador assume as taxas: valor informado é o valor líquido desejado
+      netValue = totalValue;
+      grossValue = totalValue;
+      fees = (grossValue * rate) / 100;
+      netValue = grossValue - fees;
     }
-  }, [formData.method, formData.grossValue, formData.feesPaidByClient, formData.installments]);
+
+    return { grossValue, netValue, fees };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.grossValue) {
+    if (!formData.totalValue) {
       toast.error('Valor é obrigatório');
       return;
     }
@@ -136,12 +131,14 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     setSaving(true);
 
     try {
+      const { grossValue, netValue, fees } = calculatePaymentValues();
+
       const payment: Omit<ComandaPayment, 'id' | 'createdAt'> = {
         comandaClientId: comandaClient.id,
         method: formData.method,
-        grossValue: parseFloat(formData.grossValue.replace(',', '.')),
-        netValue: parseFloat(formData.netValue.replace(',', '.')),
-        fees: parseFloat(formData.fees.replace(',', '.')),
+        grossValue,
+        netValue,
+        fees,
         installments: formData.method === 'credito-parcelado' ? formData.installments : undefined,
         feesPaidByClient: formData.feesPaidByClient
       };
@@ -164,7 +161,8 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado', icon: CreditCard }
   ];
 
-  const currentRate = getCardRate(formData.method, formData.installments);
+  // Calcular valor líquido para exibição (apenas informativo)
+  const { netValue } = calculatePaymentValues();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -198,48 +196,19 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
         </Select>
       </div>
 
-      {['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method) && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-2 mb-3">
-            <Calculator className="h-4 w-4 text-blue-600" />
-            <span className="font-medium text-blue-800 dark:text-blue-200">
-              Calculadora de Taxas
-            </span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <Label htmlFor="grossValue">Valor Bruto (R$)</Label>
-              <Input
-                id="grossValue"
-                value={formData.grossValue}
-                onChange={(e) => setFormData(prev => ({ ...prev, grossValue: e.target.value }))}
-                placeholder="0,00"
-              />
-            </div>
-            
-            <div>
-              <Label>Taxa ({currentRate}%)</Label>
-              <Input
-                value={formData.fees}
-                readOnly
-                placeholder="0,00"
-                className="bg-muted"
-              />
-            </div>
-            
-            <div>
-              <Label>Valor Líquido</Label>
-              <Input
-                value={formData.netValue}
-                readOnly
-                placeholder="0,00"
-                className="bg-muted font-medium"
-              />
-            </div>
-          </div>
+      <div>
+        <Label htmlFor="totalValue">Valor Total (R$)</Label>
+        <Input
+          id="totalValue"
+          value={formData.totalValue}
+          onChange={(e) => setFormData(prev => ({ ...prev, totalValue: e.target.value }))}
+          placeholder="0,00"
+        />
+      </div>
 
-          <div className="flex items-center space-x-2 mb-4">
+      {['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method) && (
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
             <Switch
               id="feesPaidByClient"
               checked={formData.feesPaidByClient}
@@ -267,6 +236,19 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
               </Select>
             </div>
           )}
+
+          {/* Exibir valor líquido apenas como informação */}
+          <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+            <p className="text-sm text-green-800 dark:text-green-200 font-medium">
+              Valor líquido para o financeiro: {netValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+            <p className="text-xs text-green-600 dark:text-green-300">
+              {formData.feesPaidByClient 
+                ? 'Taxa será descontada do valor informado' 
+                : 'Taxa já aplicada automaticamente'
+              }
+            </p>
+          </div>
         </div>
       )}
 
@@ -571,7 +553,7 @@ export function ComandaView() {
                       </div>
                       
                       <div className="text-center p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Recebido</p>
+                        <p className="text-sm text-muted-foreground">Total Líquido</p>
                         <p className="text-lg font-bold text-green-600">
                           {formatCurrency(totalPaid)}
                         </p>
@@ -597,7 +579,7 @@ export function ComandaView() {
                               <p className="font-bold">{formatCurrency(client.value)}</p>
                               {client.payment && (
                                 <p className="text-xs text-green-600">
-                                  Pago: {formatCurrency(client.payment.netValue)}
+                                  Líquido: {formatCurrency(client.payment.netValue)}
                                 </p>
                               )}
                             </div>
@@ -677,7 +659,7 @@ export function ComandaView() {
                           Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {comanda.clients.length} clientes • {formatCurrency(totalPaid)} recebido
+                          {comanda.clients.length} clientes • {formatCurrency(totalPaid)} líquido
                         </p>
                       </div>
                       <Badge variant="secondary">
@@ -709,7 +691,7 @@ export function ComandaView() {
 
       {/* Dialog para registrar pagamento */}
       <Dialog open={isPaymentFormOpen} onOpenChange={setIsPaymentFormOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
           </DialogHeader>
