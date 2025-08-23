@@ -161,9 +161,15 @@ export interface TaxSettings {
   id: string;
   tattooerId: string;
   creditCardCashRate: number; // Taxa cartão crédito à vista
-  creditCardInstallmentRate: number; // Taxa cartão crédito parcelado
+  creditCardInstallmentRate: number; // Taxa cartão crédito parcelado (padrão)
   debitCardRate: number; // Taxa cartão débito
   pixRate: number; // Taxa PIX
+  // Novas configurações de taxas por faixa de parcelamento
+  installmentRates: {
+    twoInstallments: number; // Taxa para 2x
+    threeInstallments: number; // Taxa para 3x
+    fourOrMoreInstallments: number; // Taxa para 4x ou mais
+  };
   updatedAt: Date;
 }
 

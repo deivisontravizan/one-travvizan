@@ -33,6 +33,7 @@ interface PaymentFormProps {
 }
 
 function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
+  const { taxSettings } = useApp();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     method: 'dinheiro' as ComandaPayment['method'],
@@ -43,12 +44,38 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     feesPaidByClient: false
   });
 
-  // Taxas padrão de cartão
-  const cardRates = {
-    'credito-vista': 3.5,
-    'credito-parcelado': 4.5,
-    'debito': 2.5,
-    'pix': 0
+  // Usar taxas das configurações ou valores padrão
+  const getCardRate = (method: string, installments?: number) => {
+    if (!taxSettings) {
+      // Valores padrão caso não haja configurações
+      const defaultRates = {
+        'credito-vista': 3.5,
+        'credito-parcelado': 4.5,
+        'debito': 2.5,
+        'pix': 0
+      };
+      return defaultRates[method as keyof typeof defaultRates] || 0;
+    }
+
+    switch (method) {
+      case 'credito-vista':
+        return taxSettings.creditCardCashRate;
+      case 'credito-parcelado':
+        if (installments === 2) {
+          return taxSettings.installmentRates?.twoInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 3) {
+          return taxSettings.installmentRates?.threeInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments && installments >= 4) {
+          return taxSettings.installmentRates?.fourOrMoreInstallments || taxSettings.creditCardInstallmentRate;
+        }
+        return taxSettings.creditCardInstallmentRate;
+      case 'debito':
+        return taxSettings.debitCardRate;
+      case 'pix':
+        return taxSettings.pixRate;
+      default:
+        return 0;
+    }
   };
 
   const calculateFees = () => {
@@ -56,19 +83,8 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     if (isNaN(grossValue)) return;
 
     let rate = 0;
-    switch (formData.method) {
-      case 'credito-vista':
-        rate = cardRates['credito-vista'];
-        break;
-      case 'credito-parcelado':
-        rate = cardRates['credito-parcelado'];
-        break;
-      case 'debito':
-        rate = cardRates['debito'];
-        break;
-      case 'pix':
-        rate = cardRates['pix'];
-        break;
+    if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(formData.method)) {
+      rate = getCardRate(formData.method, formData.installments);
     }
 
     const fees = (grossValue * rate) / 100;
@@ -91,7 +107,7 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
         netValue: prev.grossValue
       }));
     }
-  }, [formData.method, formData.grossValue, formData.feesPaidByClient]);
+  }, [formData.method, formData.grossValue, formData.feesPaidByClient, formData.installments]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,6 +147,8 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     { value: 'credito-vista', label: 'Cartão de Crédito à Vista', icon: CreditCard },
     { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado', icon: CreditCard }
   ];
+
+  const currentRate = getCardRate(formData.method, formData.installments);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -185,7 +203,7 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
             </div>
             
             <div>
-              <Label>Taxa ({cardRates[formData.method as keyof typeof cardRates]}%)</Label>
+              <Label>Taxa ({currentRate}%)</Label>
               <Input
                 value={formData.fees}
                 readOnly

@@ -14,6 +14,7 @@ import { CRMVisual } from '@/components/crm/crm-visual';
 import { ComandaView } from '@/components/comandas/comanda-view';
 import { NewClientDialog } from '@/components/clients/client-form';
 import { OverviewCards } from '@/components/dashboard/overview-cards';
+import { TaxSettingsForm } from '@/components/settings/tax-settings';
 import {
   LayoutDashboard,
   Calendar,
@@ -262,11 +263,7 @@ export function MainApp() {
             {activeTab === 'settings' && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold">Configurações</h2>
-                <Card>
-                  <CardContent className="p-6">
-                    <p className="text-muted-foreground">Configurações em desenvolvimento...</p>
-                  </CardContent>
-                </Card>
+                <TaxSettingsForm />
               </div>
             )}
           </div>
