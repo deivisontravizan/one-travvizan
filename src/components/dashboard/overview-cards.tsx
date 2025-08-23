@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { useApp } from '@/contexts/app-context';
 import {
   Calendar,
-  Users,
   DollarSign,
   TrendingUp,
   Clock,
@@ -16,25 +15,43 @@ import {
 export function OverviewCards() {
   const { sessions, clients, transactions, goals } = useApp();
 
-  // Calcular métricas
+  // Obter mês atual
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  
+  // 1. Percentual da meta atingida
+  const currentGoal = goals.find(goal => goal.month === currentMonth) || goals[0];
+  const goalProgress = currentGoal ? (currentGoal.current / currentGoal.target) * 100 : 0;
+
+  // 2. Receita bruta do período atual
+  const currentMonthRevenue = transactions
+    .filter(t => {
+      const transactionDate = new Date(t.transactionDate || t.createdAt);
+      const transactionMonth = transactionDate.toISOString().slice(0, 7);
+      return t.type === 'receita' && transactionMonth === currentMonth;
+    })
+    .reduce((sum, t) => sum + (t.grossValue || t.value), 0);
+
+  // 3. Dias disponíveis para meta
+  const availableDays = currentGoal?.availableDays || 22;
+
+  // 4. Agendamentos do mês atual
+  const monthlyScheduledSessions = sessions.filter(session => {
+    const sessionDate = new Date(session.date);
+    const sessionMonth = sessionDate.toISOString().slice(0, 7);
+    return sessionMonth === currentMonth;
+  });
+
+  // Alertas IA (manter os existentes)
+  const pendingClients = clients.filter(client => 
+    client.status === 'novo-contato' || client.status === 'em-conversa'
+  );
+
   const todaySessions = sessions.filter(session => {
     const today = new Date();
     const sessionDate = new Date(session.date);
     return sessionDate.toDateString() === today.toDateString();
   });
 
-  const pendingClients = clients.filter(client => 
-    client.status === 'novo-contato' || client.status === 'em-conversa'
-  );
-
-  const monthlyRevenue = transactions
-    .filter(t => t.type === 'receita')
-    .reduce((sum, t) => sum + t.value, 0);
-
-  const currentGoal = goals[0];
-  const goalProgress = currentGoal ? (currentGoal.current / currentGoal.target) * 100 : 0;
-
-  // Alertas IA
   const alerts = [
     {
       type: 'leads',
@@ -52,59 +69,7 @@ export function OverviewCards() {
     <div className="space-y-6">
       {/* Cards principais */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Sessões Hoje */}
-        <Card className="border border-border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sessões Hoje</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{todaySessions.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {todaySessions.length > 0 ? 'Próxima às 14:00' : 'Nenhuma sessão'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Leads Pendentes */}
-        <Card className="border border-border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Leads Pendentes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingClients.length}</div>
-            <div className="flex items-center gap-2 mt-1">
-              {pendingClients.length > 3 && (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Urgente
-                </Badge>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Aguardando resposta
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Faturamento Mensal */}
-        <Card className="border border-border">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Faturamento</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              R$ {monthlyRevenue.toLocaleString('pt-BR')}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Este mês
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Meta do Mês */}
+        {/* 1. Percentual da Meta Atingida */}
         <Card className="border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
@@ -120,6 +85,50 @@ export function OverviewCards() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               R$ {currentGoal?.current.toLocaleString('pt-BR')} de R$ {currentGoal?.target.toLocaleString('pt-BR')}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 2. Receita Bruta do Período Atual */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Bruta</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              R$ {currentMonthRevenue.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Período atual
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 3. Dias Disponíveis para Meta */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Dias Disponíveis</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{availableDays}</div>
+            <p className="text-xs text-muted-foreground">
+              Para atingir a meta
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 4. Agendamentos do Mês Atual */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Agendamentos</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{monthlyScheduledSessions.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Sessões do mês
             </p>
           </CardContent>
         </Card>
