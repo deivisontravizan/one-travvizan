@@ -105,10 +105,10 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     let fees: number;
 
     if (formData.feesPaidByClient) {
-      // Cliente paga as taxas: valor informado é o valor bruto
+      // Cliente paga as taxas: valor informado é o valor bruto, valor líquido é 100%
       grossValue = totalValue;
       fees = (grossValue * rate) / 100;
-      netValue = grossValue - fees;
+      netValue = grossValue; // 100% do valor vai para o financeiro
     } else {
       // Tatuador assume as taxas: valor informado é o valor líquido desejado
       netValue = totalValue;
@@ -244,7 +244,7 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
             </p>
             <p className="text-xs text-green-600 dark:text-green-300">
               {formData.feesPaidByClient 
-                ? 'Taxa será descontada do valor informado' 
+                ? 'Cliente paga as taxas - valor integral para o financeiro' 
                 : 'Taxa já aplicada automaticamente'
               }
             </p>
