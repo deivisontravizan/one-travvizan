@@ -164,11 +164,19 @@ export interface TaxSettings {
   creditCardInstallmentRate: number; // Taxa cartão crédito parcelado (padrão)
   debitCardRate: number; // Taxa cartão débito
   pixRate: number; // Taxa PIX
-  // Novas configurações de taxas por faixa de parcelamento
+  // Configurações de taxas por faixa de parcelamento até 12x
   installmentRates: {
     twoInstallments: number; // Taxa para 2x
     threeInstallments: number; // Taxa para 3x
-    fourOrMoreInstallments: number; // Taxa para 4x ou mais
+    fourInstallments: number; // Taxa para 4x
+    fiveInstallments: number; // Taxa para 5x
+    sixInstallments: number; // Taxa para 6x
+    sevenInstallments: number; // Taxa para 7x
+    eightInstallments: number; // Taxa para 8x
+    nineInstallments: number; // Taxa para 9x
+    tenInstallments: number; // Taxa para 10x
+    elevenInstallments: number; // Taxa para 11x
+    twelveInstallments: number; // Taxa para 12x
   };
   updatedAt: Date;
 }

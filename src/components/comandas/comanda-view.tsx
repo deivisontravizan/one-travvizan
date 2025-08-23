@@ -65,8 +65,24 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
           return taxSettings.installmentRates?.twoInstallments || taxSettings.creditCardInstallmentRate;
         } else if (installments === 3) {
           return taxSettings.installmentRates?.threeInstallments || taxSettings.creditCardInstallmentRate;
-        } else if (installments && installments >= 4) {
-          return taxSettings.installmentRates?.fourOrMoreInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 4) {
+          return taxSettings.installmentRates?.fourInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 5) {
+          return taxSettings.installmentRates?.fiveInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 6) {
+          return taxSettings.installmentRates?.sixInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 7) {
+          return taxSettings.installmentRates?.sevenInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 8) {
+          return taxSettings.installmentRates?.eightInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 9) {
+          return taxSettings.installmentRates?.nineInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 10) {
+          return taxSettings.installmentRates?.tenInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 11) {
+          return taxSettings.installmentRates?.elevenInstallments || taxSettings.creditCardInstallmentRate;
+        } else if (installments === 12) {
+          return taxSettings.installmentRates?.twelveInstallments || taxSettings.creditCardInstallmentRate;
         }
         return taxSettings.creditCardInstallmentRate;
       case 'debito':
