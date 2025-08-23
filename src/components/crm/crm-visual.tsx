@@ -330,7 +330,8 @@ export function CRMVisual() {
 
   // Estados para filtros adicionais
   const [statusFilter, setStatusFilter] = useState<Client['status'] | 'all'>('all');
-  const [monthFilter, setMonthFilter] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
 
   // Obter clientes do período selecionado
   const periodClients = useMemo(() => {
@@ -350,16 +351,22 @@ export function CRMVisual() {
       clients = clients.filter(client => client.status === statusFilter);
     }
 
-    // Filtro por mês de criação
-    if (monthFilter !== 'all') {
+    // Filtro por mês e ano de criação
+    if (selectedMonth !== 'all' || selectedYear !== 'all') {
       clients = clients.filter(client => {
-        const clientMonth = client.createdAt.toISOString().slice(0, 7); // YYYY-MM
-        return clientMonth === monthFilter;
+        const clientDate = new Date(client.createdAt);
+        const clientMonth = clientDate.getMonth() + 1;
+        const clientYear = clientDate.getFullYear();
+        
+        const monthMatch = selectedMonth === 'all' || clientMonth === parseInt(selectedMonth);
+        const yearMatch = selectedYear === 'all' || clientYear === parseInt(selectedYear);
+        
+        return monthMatch && yearMatch;
       });
     }
 
     return clients;
-  }, [periodClients, statusFilter, monthFilter]);
+  }, [periodClients, statusFilter, selectedMonth, selectedYear]);
 
   // Calcular métricas do período
   const periodMetrics = useMemo((): PeriodMetrics => {
@@ -432,22 +439,54 @@ export function CRMVisual() {
     return daysSinceUpdate > 3 && !['desqualificado'].includes(client.status);
   }).length;
 
-  // Gerar opções de mês para o filtro
-  const getMonthOptions = () => {
-    const months = new Set<string>();
+  // Gerar opções de mês e ano
+  const getAvailableMonths = () => {
+    const months = [
+      { value: '1', label: 'Janeiro' },
+      { value: '2', label: 'Fevereiro' },
+      { value: '3', label: 'Março' },
+      { value: '4', label: 'Abril' },
+      { value: '5', label: 'Maio' },
+      { value: '6', label: 'Junho' },
+      { value: '7', label: 'Julho' },
+      { value: '8', label: 'Agosto' },
+      { value: '9', label: 'Setembro' },
+      { value: '10', label: 'Outubro' },
+      { value: '11', label: 'Novembro' },
+      { value: '12', label: 'Dezembro' }
+    ];
+    return months;
+  };
+
+  const getAvailableYears = () => {
+    const years = new Set<number>();
     periodClients.forEach(client => {
-      const month = client.createdAt.toISOString().slice(0, 7);
-      months.add(month);
+      years.add(new Date(client.createdAt).getFullYear());
     });
-    return Array.from(months).sort().reverse();
+    return Array.from(years).sort().reverse();
   };
 
   const clearFilters = () => {
     setStatusFilter('all');
-    setMonthFilter('all');
+    setSelectedMonth('all');
+    setSelectedYear('all');
   };
 
-  const hasActiveFilters = statusFilter !== 'all' || monthFilter !== 'all';
+  const hasActiveFilters = statusFilter !== 'all' || selectedMonth !== 'all' || selectedYear !== 'all';
+
+  // Contar clientes filtrados por mês/ano
+  const getFilteredCount = (month?: string, year?: string) => {
+    return periodClients.filter(client => {
+      const clientDate = new Date(client.createdAt);
+      const clientMonth = clientDate.getMonth() + 1;
+      const clientYear = clientDate.getFullYear();
+      
+      const monthMatch = !month || month === 'all' || clientMonth === parseInt(month);
+      const yearMatch = !year || year === 'all' || clientYear === parseInt(year);
+      
+      return monthMatch && yearMatch;
+    }).length;
+  };
 
   return (
     <div className="space-y-4 lg:space-y-6">
@@ -510,37 +549,49 @@ export function CRMVisual() {
               >
                 Orçamento Enviado ({periodClients.filter(c => c.status === 'orcamento-enviado').length})
               </Button>
+            </div>
 
-              {/* Filtro por mês */}
-              <Select value={monthFilter} onValueChange={setMonthFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filtrar por mês de criação" />
+            {/* Filtros por Mês e Ano */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="text-sm font-medium">Filtrar por período de criação:</span>
+              
+              {/* Seletor de Mês */}
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Selecionar mês" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os meses</SelectItem>
-                  {getMonthOptions().map(month => {
-                    const [year, monthNum] = month.split('-');
-                    const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('pt-BR', { 
-                      month: 'long', 
-                      year: 'numeric' 
-                    });
-                    const count = periodClients.filter(c => c.createdAt.toISOString().slice(0, 7) === month).length;
-                    return (
-                      <SelectItem key={month} value={month}>
-                        {monthName} ({count})
-                      </SelectItem>
-                    );
-                  })}
+                  {getAvailableMonths().map(month => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label} ({getFilteredCount(month.value, selectedYear)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Seletor de Ano */}
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Selecionar ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os anos</SelectItem>
+                  {getAvailableYears().map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year} ({getFilteredCount(selectedMonth, year.toString())})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {hasActiveFilters && (
               <div className="text-sm text-muted-foreground">
-                
                 Mostrando {filteredClients.length} de {periodClients.length} leads
                 {statusFilter !== 'all' && ` • Status: ${columns.find(c => c.id === statusFilter)?.title}`}
-                {monthFilter !== 'all' && ` • Mês: ${new Date(monthFilter + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`}
+                {selectedMonth !== 'all' && ` • Mês: ${getAvailableMonths().find(m => m.value === selectedMonth)?.label}`}
+                {selectedYear !== 'all' && ` • Ano: ${selectedYear}`}
               </div>
             )}
           </div>
