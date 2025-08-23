@@ -459,11 +459,20 @@ export function CRMVisual() {
   };
 
   const getAvailableYears = () => {
-    const years = new Set<number>();
+    // Obter anos dos dados existentes
+    const dataYears = new Set<number>();
     periodClients.forEach(client => {
-      years.add(new Date(client.createdAt).getFullYear());
+      dataYears.add(new Date(client.createdAt).getFullYear());
     });
-    return Array.from(years).sort().reverse();
+
+    // Adicionar anos padrão (ano atual e próximos/anteriores)
+    const currentYear = new Date().getFullYear();
+    const defaultYears = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+    
+    // Combinar anos dos dados com anos padrão
+    const allYears = new Set([...dataYears, ...defaultYears]);
+    
+    return Array.from(allYears).sort().reverse();
   };
 
   const clearFilters = () => {
