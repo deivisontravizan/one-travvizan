@@ -25,7 +25,7 @@ export function OverviewCards() {
   // 2. Receita bruta do período atual
   const currentMonthRevenue = transactions
     .filter(t => {
-      const transactionDate = new Date(t.transactionDate || t.createdAt);
+      const transactionDate = new Date(t.date);
       const transactionMonth = transactionDate.toISOString().slice(0, 7);
       return t.type === 'receita' && transactionMonth === currentMonth;
     })
@@ -84,7 +84,7 @@ export function OverviewCards() {
               />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              R$ {currentGoal?.current.toLocaleString('pt-BR')} de R$ {currentGoal?.target.toLocaleString('pt-BR')}
+              R$ {(currentGoal?.current || 0).toLocaleString('pt-BR')} de R$ {(currentGoal?.target || 0).toLocaleString('pt-BR')}
             </p>
           </CardContent>
         </Card>
