@@ -23,7 +23,11 @@ import {
   DollarSign,
   MapPin,
   Loader2,
-  UserPlus
+  UserPlus,
+  ImageIcon,
+  X,
+  Upload,
+  Eye
 } from 'lucide-react';
 
 const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -60,6 +64,10 @@ function SessionCard({ session, clientName }: SessionCardProps) {
     }
   };
 
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -74,10 +82,15 @@ function SessionCard({ session, clientName }: SessionCardProps) {
               minute: '2-digit' 
             })} - {session.duration}h
           </div>
+          {session.signalValue && (
+            <div className="text-xs text-green-600 font-medium">
+              Sinal: {formatCurrency(session.signalValue)}
+            </div>
+          )}
         </div>
       </DialogTrigger>
 
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Detalhes da Sessão - {clientName}</DialogTitle>
         </DialogHeader>
@@ -108,16 +121,66 @@ function SessionCard({ session, clientName }: SessionCardProps) {
               <label className="text-sm font-medium">Duração</label>
               <p className="text-sm text-muted-foreground">{session.duration} horas</p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Valor</label>
-              <p className="text-sm text-muted-foreground">R$ {session.value.toLocaleString('pt-BR')}</p>
-            </div>
           </div>
+
+          {/* Valores */}
+          {(session.totalValue || session.signalValue) && (
+            <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+              <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Valores</h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                {session.totalValue && (
+                  <div>
+                    <label className="text-green-700 dark:text-green-300">Valor Total</label>
+                    <p className="font-bold text-green-800 dark:text-green-200">
+                      {formatCurrency(session.totalValue)}
+                    </p>
+                  </div>
+                )}
+                {session.signalValue && (
+                  <div>
+                    <label className="text-green-700 dark:text-green-300">Sinal Pago</label>
+                    <p className="font-bold text-green-800 dark:text-green-200">
+                      {formatCurrency(session.signalValue)}
+                    </p>
+                  </div>
+                )}
+                {session.pendingValue && (
+                  <div>
+                    <label className="text-orange-700 dark:text-orange-300">Valor Pendente</label>
+                    <p className="font-bold text-orange-800 dark:text-orange-200">
+                      {formatCurrency(session.pendingValue)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium">Descrição</label>
             <p className="text-sm text-muted-foreground mt-1">{session.description}</p>
           </div>
+
+          {/* Imagens de Referência */}
+          {session.referenceImages && session.referenceImages.length > 0 && (
+            <div>
+              <label className="text-sm font-medium">Imagens de Referência</label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {session.referenceImages.map((image, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={image}
+                      alt={`Referência ${index + 1}`}
+                      className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-80"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded flex items-center justify-center transition-all">
+                      <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button size="sm" className="flex-1">
@@ -155,6 +218,8 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
     date: selectedDate ? selectedDate.toISOString().slice(0, 16) : '',
     duration: '2',
     value: '',
+    totalValue: '',
+    signalValue: '',
     description: '',
     status: 'agendado' as Session['status']
   });
@@ -166,12 +231,17 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
     style: 'Fine Line'
   });
 
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const [imageInput, setImageInput] = useState('');
+
   const resetForm = () => {
     setSessionData({
       clientId: '',
       date: selectedDate ? selectedDate.toISOString().slice(0, 16) : '',
       duration: '2',
       value: '',
+      totalValue: '',
+      signalValue: '',
       description: '',
       status: 'agendado'
     });
@@ -182,6 +252,26 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
       style: 'Fine Line'
     });
     setClientType('existing');
+    setReferenceImages([]);
+    setImageInput('');
+  };
+
+  // Calcular valor pendente automaticamente
+  const calculatePendingValue = () => {
+    const total = parseFloat(sessionData.totalValue.replace(',', '.')) || 0;
+    const signal = parseFloat(sessionData.signalValue.replace(',', '.')) || 0;
+    return total - signal;
+  };
+
+  const addReferenceImage = () => {
+    if (imageInput.trim() && !referenceImages.includes(imageInput.trim())) {
+      setReferenceImages(prev => [...prev, imageInput.trim()]);
+      setImageInput('');
+    }
+  };
+
+  const removeReferenceImage = (index: number) => {
+    setReferenceImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -190,11 +280,6 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
     // Validações
     if (!sessionData.date) {
       toast.error('Data e hora são obrigatórios');
-      return;
-    }
-    
-    if (!sessionData.value) {
-      toast.error('Valor é obrigatório');
       return;
     }
     
@@ -213,6 +298,15 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         toast.error('Nome e WhatsApp são obrigatórios para novo cliente');
         return;
       }
+    }
+
+    // Validação de valores
+    const totalValue = parseFloat(sessionData.totalValue.replace(',', '.')) || 0;
+    const signalValue = parseFloat(sessionData.signalValue.replace(',', '.')) || 0;
+    
+    if (signalValue > totalValue) {
+      toast.error('Valor do sinal não pode ser maior que o valor total');
+      return;
     }
 
     setSaving(true);
@@ -256,19 +350,32 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         return;
       }
 
+      const pendingValue = calculatePendingValue();
+
       const session: Omit<Session, 'id'> = {
         clientId,
         tattooerId: user?.id || '',
         date: new Date(sessionData.date),
         duration: parseInt(sessionData.duration),
-        value: parseFloat(sessionData.value.replace(',', '.')),
+        value: totalValue || parseFloat(sessionData.value.replace(',', '.')) || 0,
+        totalValue: totalValue || undefined,
+        signalValue: signalValue || undefined,
+        pendingValue: pendingValue > 0 ? pendingValue : undefined,
         status: sessionData.status,
         description: sessionData.description,
-        photos: []
+        photos: [],
+        referenceImages: referenceImages.length > 0 ? referenceImages : undefined
       };
 
       await addSession(session);
-      toast.success('Sessão agendada com sucesso!');
+      
+      // Se há valor de sinal, registrar automaticamente na comanda
+      if (signalValue > 0) {
+        toast.success(`Sessão agendada! Sinal de ${signalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} será registrado na comanda.`);
+      } else {
+        toast.success('Sessão agendada com sucesso!');
+      }
+      
       setIsOpen(false);
       resetForm();
     } catch (error) {
@@ -291,12 +398,12 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         </Button>
       </DialogTrigger>
       
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Agendar Nova Sessão</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Tipo de Cliente */}
           <div>
             <Label>Tipo de Cliente</Label>
@@ -423,17 +530,75 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
             </div>
 
             <div>
-              <Label htmlFor="value">Valor (R$) *</Label>
+              <Label htmlFor="status">Status</Label>
+              <Select value={sessionData.status} onValueChange={(value: Session['status']) => setSessionData(prev => ({ ...prev, status: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agendado">Agendado</SelectItem>
+                  <SelectItem value="confirmado">Confirmado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Valores */}
+          <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950">
+            <Label className="text-sm font-medium text-blue-800 dark:text-blue-200">Valores da Tatuagem</Label>
+            <div className="grid grid-cols-3 gap-4 mt-3">
+              <div>
+                <Label htmlFor="totalValue">Valor Total (R$)</Label>
+                <Input
+                  id="totalValue"
+                  type="text"
+                  value={sessionData.totalValue}
+                  onChange={(e) => setSessionData(prev => ({ ...prev, totalValue: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="signalValue">Valor do Sinal (R$)</Label>
+                <Input
+                  id="signalValue"
+                  type="text"
+                  value={sessionData.signalValue}
+                  onChange={(e) => setSessionData(prev => ({ ...prev, signalValue: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div>
+                <Label>Valor Pendente (R$)</Label>
+                <div className="p-2 bg-muted rounded border text-sm text-muted-foreground">
+                  {calculatePendingValue().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+              </div>
+            </div>
+            
+            {sessionData.signalValue && parseFloat(sessionData.signalValue.replace(',', '.')) > 0 && (
+              <div className="mt-3 p-3 bg-green-100 dark:bg-green-900 rounded border border-green-200 dark:border-green-800">
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  💡 O valor do sinal será registrado automaticamente na comanda do dia do atendimento.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Valor Alternativo (para compatibilidade) */}
+          {!sessionData.totalValue && (
+            <div>
+              <Label htmlFor="value">Valor da Sessão (R$)</Label>
               <Input
                 id="value"
                 type="text"
                 value={sessionData.value}
                 onChange={(e) => setSessionData(prev => ({ ...prev, value: e.target.value }))}
                 placeholder="0,00"
-                required
               />
             </div>
-          </div>
+          )}
 
           <div>
             <Label htmlFor="description">Descrição *</Label>
@@ -446,17 +611,52 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
             />
           </div>
 
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <Select value={sessionData.status} onValueChange={(value: Session['status']) => setSessionData(prev => ({ ...prev, status: value }))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="agendado">Agendado</SelectItem>
-                <SelectItem value="confirmado">Confirmado</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Imagens de Referência */}
+          <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950">
+            <Label className="text-sm font-medium text-purple-800 dark:text-purple-200">Imagens de Referência</Label>
+            
+            <div className="mt-3 space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  value={imageInput}
+                  onChange={(e) => setImageInput(e.target.value)}
+                  placeholder="Cole a URL da imagem de referência"
+                  className="flex-1"
+                />
+                <Button type="button" onClick={addReferenceImage} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+
+              {referenceImages.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {referenceImages.length} imagem(ns) adicionada(s):
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {referenceImages.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={image}
+                          alt={`Referência ${index + 1}`}
+                          className="w-full h-20 object-cover rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeReferenceImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -677,7 +877,7 @@ export function CalendarView() {
               {getSessionsForDate(today).length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {getSessionsForDate(today).reduce((sum, s) => sum + s.value, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {getSessionsForDate(today).reduce((sum, s) => sum + (s.totalValue || s.value), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </p>
           </CardContent>
         </Card>
@@ -701,11 +901,13 @@ export function CalendarView() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Slots Livres</CardTitle>
+            <CardTitle className="text-sm">Sinais Recebidos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">6</div>
-            <p className="text-xs text-muted-foreground">Horários disponíveis hoje</p>
+            <div className="text-2xl font-bold text-green-600">
+              {getSessionsForDate(today).reduce((sum, s) => sum + (s.signalValue || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </div>
+            <p className="text-xs text-muted-foreground">Valores de entrada hoje</p>
           </CardContent>
         </Card>
       </div>

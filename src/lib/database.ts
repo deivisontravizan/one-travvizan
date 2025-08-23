@@ -161,9 +161,13 @@ export async function getSessions(): Promise<Session[]> {
       date: new Date(session.session_date),
       duration: session.duration,
       value: session.value,
+      totalValue: session.total_value,
+      signalValue: session.signal_value,
+      pendingValue: session.pending_value,
       status: session.status,
       description: session.description,
-      photos: session.photos || []
+      photos: session.photos || [],
+      referenceImages: session.reference_images || []
     }));
   } catch (error) {
     console.error('Erro ao buscar sessões:', error);
@@ -187,9 +191,13 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
         session_date: sessionData.date.toISOString(),
         duration: sessionData.duration,
         value: sessionData.value,
+        total_value: sessionData.totalValue,
+        signal_value: sessionData.signalValue,
+        pending_value: sessionData.pendingValue,
         status: sessionData.status,
         description: sessionData.description,
-        photos: sessionData.photos || []
+        photos: sessionData.photos || [],
+        reference_images: sessionData.referenceImages || []
       })
       .select()
       .single();
@@ -206,9 +214,13 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       date: new Date(data.session_date),
       duration: data.duration,
       value: data.value,
+      totalValue: data.total_value,
+      signalValue: data.signal_value,
+      pendingValue: data.pending_value,
       status: data.status,
       description: data.description,
-      photos: data.photos || []
+      photos: data.photos || [],
+      referenceImages: data.reference_images || []
     };
   } catch (error) {
     console.error('Erro ao criar sessão:', error);
@@ -223,9 +235,13 @@ export async function updateSession(id: string, updates: Partial<Session>): Prom
     if (updates.date) updateData.session_date = updates.date.toISOString();
     if (updates.duration !== undefined) updateData.duration = updates.duration;
     if (updates.value !== undefined) updateData.value = updates.value;
+    if (updates.totalValue !== undefined) updateData.total_value = updates.totalValue;
+    if (updates.signalValue !== undefined) updateData.signal_value = updates.signalValue;
+    if (updates.pendingValue !== undefined) updateData.pending_value = updates.pendingValue;
     if (updates.status) updateData.status = updates.status;
     if (updates.description) updateData.description = updates.description;
     if (updates.photos) updateData.photos = updates.photos;
+    if (updates.referenceImages) updateData.reference_images = updates.referenceImages;
 
     const { data, error } = await supabase
       .from('sessions')
@@ -246,9 +262,13 @@ export async function updateSession(id: string, updates: Partial<Session>): Prom
       date: new Date(data.session_date),
       duration: data.duration,
       value: data.value,
+      totalValue: data.total_value,
+      signalValue: data.signal_value,
+      pendingValue: data.pending_value,
       status: data.status,
       description: data.description,
-      photos: data.photos || []
+      photos: data.photos || [],
+      referenceImages: data.reference_images || []
     };
   } catch (error) {
     console.error('Erro ao atualizar sessão:', error);
@@ -616,7 +636,7 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
     return {
       id: data.id,
       date: new Date(data.comanda_date),
-      tattooerId: data.tattooerid,
+      tattoo erId: data.tattooerid,
       openingValue: data.opening_value,
       closingValue: data.closing_value,
       status: data.status,

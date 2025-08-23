@@ -45,9 +45,15 @@ export interface Session {
   date: Date;
   duration: number;
   value: number;
+  // Novos campos para valores
+  totalValue?: number; // Valor total da tatuagem
+  signalValue?: number; // Valor do sinal (entrada)
+  pendingValue?: number; // Valor pendente (calculado)
   status: 'agendado' | 'confirmado' | 'realizado' | 'cancelado' | 'reagendado';
   description: string;
   photos?: string[];
+  // Novo campo para imagens de referência
+  referenceImages?: string[]; // URLs das imagens de referência
 }
 
 export interface Goal {
