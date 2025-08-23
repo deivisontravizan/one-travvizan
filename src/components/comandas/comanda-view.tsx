@@ -721,7 +721,7 @@ export function ComandaView() {
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalP aid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
+              const totalPaid = comanda.clients.reduce((sum,  client) => sum + calculateTotalPaid(client), 0);
               const totalPendente = totalClients - totalPaid;
               
               return (
