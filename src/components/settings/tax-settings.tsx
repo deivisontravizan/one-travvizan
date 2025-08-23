@@ -1,338 +1,304 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import { TaxSettings } from '@/lib/types';
+import { toast } from 'sonner';
 import {
+  Settings,
   CreditCard,
   Smartphone,
-  Banknote,
+  DollarSign,
   Calculator,
   Save,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
 
-export function TaxSettingsForm() {
-  const { taxSettings, updateTaxSettings, user } = useApp();
+export function TaxSettingsComponent() {
+  const { taxSettings, updateTaxSettings } = useApp();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    creditCardCashRate: taxSettings?.creditCardCashRate.toString() || '3.5',
-    creditCardInstallmentRate: taxSettings?.creditCardInstallmentRate.toString() || '4.5',
-    debitCardRate: taxSettings?.debitCardRate.toString() || '2.5',
-    pixRate: taxSettings?.pixRate.toString() || '0',
-    // Configurações de parcelamento até 12x
-    twoInstallments: taxSettings?.installmentRates?.twoInstallments.toString() || '4.0',
-    threeInstallments: taxSettings?.installmentRates?.threeInstallments.toString() || '4.5',
-    fourInstallments: taxSettings?.installmentRates?.fourInstallments.toString() || '5.0',
-    fiveInstallments: taxSettings?.installmentRates?.fiveInstallments.toString() || '5.5',
-    sixInstallments: taxSettings?.installmentRates?.sixInstallments.toString() || '6.0',
-    sevenInstallments: taxSettings?.installmentRates?.sevenInstallments.toString() || '6.5',
-    eightInstallments: taxSettings?.installmentRates?.eightInstallments.toString() || '7.0',
-    nineInstallments: taxSettings?.installmentRates?.nineInstallments.toString() || '7.5',
-    tenInstallments: taxSettings?.installmentRates?.tenInstallments.toString() || '8.0',
-    elevenInstallments: taxSettings?.installmentRates?.elevenInstallments.toString() || '8.5',
-    twelveInstallments: taxSettings?.installmentRates?.twelveInstallments.toString() || '9.0'
+    creditCardCashRate: '3.5',
+    creditCardInstallmentRate: '4.5',
+    debitCardRate: '2.5',
+    pixRate: '0'
   });
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  // Carregar configurações existentes
+  useEffect(() => {
+    if (taxSettings) {
+      setFormData({
+        creditCardCashRate: taxSettings.creditCardCashRate.toString(),
+        creditCardInstallmentRate: taxSettings.creditCardInstallmentRate.toString(),
+        debitCardRate: taxSettings.debitCardRate.toString(),
+        pixRate: taxSettings.pixRate.toString()
+      });
+    }
+  }, [taxSettings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     
+    if (!user) {
+      toast.error('Usuário não autenticado');
+      return;
+    }
+
+    setSaving(true);
+
     try {
-      const newSettings: TaxSettings = {
-        id: taxSettings?.id || Date.now().toString(),
-        tattooerId: user?.id || '1',
-        creditCardCashRate: parseFloat(formData.creditCardCashRate) || 0,
-        creditCardInstallmentRate: parseFloat(formData.creditCardInstallmentRate) || 0,
-        debitCardRate: parseFloat(formData.debitCardRate) || 0,
-        pixRate: parseFloat(formData.pixRate) || 0,
+      const settings: TaxSettings = {
+        id: taxSettings?.id || '',
+        tattooerId: user.id,
+        creditCardCashRate: parseFloat(formData.creditCardCashRate),
+        creditCardInstallmentRate: parseFloat(formData.creditCardInstallmentRate),
+        debitCardRate: parseFloat(formData.debitCardRate),
+        pixRate: parseFloat(formData.pixRate),
         installmentRates: {
-          twoInstallments: parseFloat(formData.twoInstallments) || 0,
-          threeInstallments: parseFloat(formData.threeInstallments) || 0,
-          fourInstallments: parseFloat(formData.fourInstallments) || 0,
-          fiveInstallments: parseFloat(formData.fiveInstallments) || 0,
-          sixInstallments: parseFloat(formData.sixInstallments) || 0,
-          sevenInstallments: parseFloat(formData.sevenInstallments) || 0,
-          eightInstallments: parseFloat(formData.eightInstallments) || 0,
-          nineInstallments: parseFloat(formData.nineInstallments) || 0,
-          tenInstallments: parseFloat(formData.tenInstallments) || 0,
-          elevenInstallments: parseFloat(formData.elevenInstallments) || 0,
-          twelveInstallments: parseFloat(formData.twelveInstallments) || 0
+          twoInstallments: 4.0,
+          threeInstallments: 4.5,
+          fourInstallments: 5.0,
+          fiveInstallments: 5.5,
+          sixInstallments: 6.0,
+          sevenInstallments: 6.5,
+          eightInstallments: 7.0,
+          nineInstallments: 7.5,
+          tenInstallments: 8.0,
+          elevenInstallments: 8.5,
+          twelveInstallments: 9.0
         },
         updatedAt: new Date()
       };
 
-      await updateTaxSettings(newSettings);
+      await updateTaxSettings(settings);
+      toast.success('Configurações de taxa atualizadas!');
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
+      toast.error('Erro ao salvar configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleInputChange = (field: string, value: string) => {
+    // Permitir apenas números e vírgula/ponto
+    const cleanValue = value.replace(/[^0-9.,]/g, '').replace(',', '.');
+    setFormData(prev => ({
+      ...prev,
+      [field]: cleanValue
+    }));
+  };
+
+  const calculateNetValue = (grossValue: number, rate: number) => {
+    const fees = (grossValue * rate) / 100;
+    return grossValue - fees;
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calculator className="h-5 w-5" />
-          Configuração de Taxas
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Taxas básicas */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-muted-foreground">Taxas Básicas</h4>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="credit-cash" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Cartão de Crédito à Vista (%)
-                </Label>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Configurações de Taxa</h2>
+        <p className="text-muted-foreground">
+          Configure as taxas das maquininhas para cálculo automático dos valores líquidos
+        </p>
+      </div>
+
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-600" />
+            <div>
+              <p className="font-medium text-blue-800 dark:text-blue-200 text-sm">
+                💡 Como funciona
+              </p>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                Essas taxas são usadas nas Comandas para calcular automaticamente o valor líquido que você recebe após as taxas da maquininha.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Cartão de Crédito
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="creditCardCashRate">Taxa à Vista (%)</Label>
                 <Input
-                  id="credit-cash"
-                  type="number"
-                  step="0.1"
+                  id="creditCardCashRate"
                   value={formData.creditCardCashRate}
                   onChange={(e) => handleInputChange('creditCardCashRate', e.target.value)}
                   placeholder="3.5"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Exemplo: R$ 100 → Líquido: R$ {calculateNetValue(100, parseFloat(formData.creditCardCashRate) || 0).toFixed(2)}
+                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="debit" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Cartão de Débito (%)
-                </Label>
+              <div>
+                <Label htmlFor="creditCardInstallmentRate">Taxa Parcelado (%)</Label>
                 <Input
-                  id="debit"
-                  type="number"
-                  step="0.1"
-                  value={formData.debitCardRate}
-                  onChange={(e) => handleInputChange('debitCardRate', e.target.value)}
-                  placeholder="2.5"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pix" className="flex items-center gap-2">
-                  <Smartphone className="h-4 w-4" />
-                  PIX (%)
-                </Label>
-                <Input
-                  id="pix"
-                  type="number"
-                  step="0.1"
-                  value={formData.pixRate}
-                  onChange={(e) => handleInputChange('pixRate', e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Taxas de parcelamento */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-muted-foreground">Taxas de Parcelamento</h4>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="space-y-2">
-                <Label htmlFor="two-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  2x (%)
-                </Label>
-                <Input
-                  id="two-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.twoInstallments}
-                  onChange={(e) => handleInputChange('twoInstallments', e.target.value)}
-                  placeholder="4.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="three-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  3x (%)
-                </Label>
-                <Input
-                  id="three-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.threeInstallments}
-                  onChange={(e) => handleInputChange('threeInstallments', e.target.value)}
+                  id="creditCardInstallmentRate"
+                  value={formData.creditCardInstallmentRate}
+                  onChange={(e) => handleInputChange('creditCardInstallmentRate', e.target.value)}
                   placeholder="4.5"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="four-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  4x (%)
-                </Label>
-                <Input
-                  id="four-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.fourInstallments}
-                  onChange={(e) => handleInputChange('fourInstallments', e.target.value)}
-                  placeholder="5.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="five-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  5x (%)
-                </Label>
-                <Input
-                  id="five-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.fiveInstallments}
-                  onChange={(e) => handleInputChange('fiveInstallments', e.target.value)}
-                  placeholder="5.5"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="six-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  6x (%)
-                </Label>
-                <Input
-                  id="six-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.sixInstallments}
-                  onChange={(e) => handleInputChange('sixInstallments', e.target.value)}
-                  placeholder="6.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="seven-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  7x (%)
-                </Label>
-                <Input
-                  id="seven-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.sevenInstallments}
-                  onChange={(e) => handleInputChange('sevenInstallments', e.target.value)}
-                  placeholder="6.5"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="eight-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  8x (%)
-                </Label>
-                <Input
-                  id="eight-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.eightInstallments}
-                  onChange={(e) => handleInputChange('eightInstallments', e.target.value)}
-                  placeholder="7.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nine-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  9x (%)
-                </Label>
-                <Input
-                  id="nine-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.nineInstallments}
-                  onChange={(e) => handleInputChange('nineInstallments', e.target.value)}
-                  placeholder="7.5"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ten-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  10x (%)
-                </Label>
-                <Input
-                  id="ten-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.tenInstallments}
-                  onChange={(e) => handleInputChange('tenInstallments', e.target.value)}
-                  placeholder="8.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="eleven-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  11x (%)
-                </Label>
-                <Input
-                  id="eleven-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.elevenInstallments}
-                  onChange={(e) => handleInputChange('elevenInstallments', e.target.value)}
-                  placeholder="8.5"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="twelve-installments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  12x (%)
-                </Label>
-                <Input
-                  id="twelve-installments"
-                  type="number"
-                  step="0.1"
-                  value={formData.twelveInstallments}
-                  onChange={(e) => handleInputChange('twelveInstallments', e.target.value)}
-                  placeholder="9.0"
-                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Exemplo: R$ 100 → Líquido: R$ {calculateNetValue(100, parseFloat(formData.creditCardInstallmentRate) || 0).toFixed(2)}
+                </p>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Exemplo de Cálculo</h4>
-            <p className="text-sm text-muted-foreground mb-2">
-              Para um serviço de R$ 100,00:
-            </p>
-            <div className="space-y-1 text-sm">
-              <p>• Cartão à vista: Taxa R$ {(100 * (parseFloat(formData.creditCardCashRate) || 0) / 100).toFixed(2)} | Líquido R$ {(100 - (100 * (parseFloat(formData.creditCardCashRate) || 0) / 100)).toFixed(2)}</p>
-              <p>• Débito: Taxa R$ {(100 * (parseFloat(formData.debitCardRate) || 0) / 100).toFixed(2)} | Líquido R$ {(100 - (100 * (parseFloat(formData.debitCardRate) || 0) / 100)).toFixed(2)}</p>
-              <p>• 2x no cartão: Taxa R$ {(100 * (parseFloat(formData.twoInstallments) || 0) / 100).toFixed(2)} | Líquido R$ {(100 - (100 * (parseFloat(formData.twoInstallments) || 0) / 100)).toFixed(2)}</p>
-              <p>• 12x no cartão: Taxa R$ {(100 * (parseFloat(formData.twelveInstallments) || 0) / 100).toFixed(2)} | Líquido R$ {(100 - (100 * (parseFloat(formData.twelveInstallments) || 0) / 100)).toFixed(2)}</p>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Cartão de Débito
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div>
+              <Label htmlFor="debitCardRate">Taxa Débito (%)</Label>
+              <Input
+                id="debitCardRate"
+                value={formData.debitCardRate}
+                onChange={(e) => handleInputChange('debitCardRate', e.target.value)}
+                placeholder="2.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Exemplo: R$ 100 → Líquido: R$ {calculateNetValue(100, parseFloat(formData.debitCardRate) || 0).toFixed(2)}
+              </p>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <Button type="submit" className="w-full" disabled={saving}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5" />
+              PIX
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div>
+              <Label htmlFor="pixRate">Taxa PIX (%)</Label>
+              <Input
+                id="pixRate"
+                value={formData.pixRate}
+                onChange={(e) => handleInputChange('pixRate', e.target.value)}
+                placeholder="0"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Exemplo: R$ 100 → Líquido: R$ {calculateNetValue(100, parseFloat(formData.pixRate) || 0).toFixed(2)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Simulador de Taxa
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">Crédito à Vista</p>
+                <p className="text-muted-foreground">Taxa: {formData.creditCardCashRate}%</p>
+                <p className="font-bold text-green-600">
+                  R$ 100 → R$ {calculateNetValue(100, parseFloat(formData.creditCardCashRate) || 0).toFixed(2)}
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">Crédito Parcelado</p>
+                <p className="text-muted-foreground">Taxa: {formData.creditCardInstallmentRate}%</p>
+                <p className="font-bold text-green-600">
+                  R$ 100 → R$ {calculateNetValue(100, parseFloat(formData.creditCardInstallmentRate) || 0).toFixed(2)}
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">Débito</p>
+                <p className="text-muted-foreground">Taxa: {formData.debitCardRate}%</p>
+                <p className="font-bold text-green-600">
+                  R$ 100 → R$ {calculateNetValue(100, parseFloat(formData.debitCardRate) || 0).toFixed(2)}
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">PIX</p>
+                <p className="text-muted-foreground">Taxa: {formData.pixRate}%</p>
+                <p className="font-bold text-green-600">
+                  R$ 100 → R$ {calculateNetValue(100, parseFloat(formData.pixRate) || 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-2">
+          <Button type="submit" className="flex-1" disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             <Save className="h-4 w-4 mr-2" />
             Salvar Configurações
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </form>
+
+      {/* Informações Adicionais */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            Informações Importantes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+            <p>
+              <strong>Taxas Variáveis:</strong> As taxas podem variar conforme sua maquininha e plano contratado. 
+              Consulte sua operadora para valores exatos.
+            </p>
+          </div>
+          
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+            <p>
+              <strong>Cálculo Automático:</strong> Nas comandas, o sistema calculará automaticamente o valor líquido 
+              baseado nessas configurações.
+            </p>
+          </div>
+          
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+            <p>
+              <strong>Atualização:</strong> Você pode alterar essas configurações a qualquer momento. 
+              As mudanças afetarão apenas novos lançamentos.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -70,7 +70,7 @@ function ExpenseForm({ categories, onSave, onCancel, onCreateCategory }: Expense
     setSaving(true);
 
     try {
-      const expense: Omit<Transaction, 'i'> = {
+      const expense: Omit<Transaction, 'id'> = {
         tattooerId: user?.id || '',
         type: 'despesa',
         description: formData.description,
