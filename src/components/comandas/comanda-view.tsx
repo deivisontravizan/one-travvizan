@@ -24,7 +24,8 @@ import {
   Smartphone,
   Loader2,
   Edit,
-  Trash2
+  Trash2,
+  Lock
 } from 'lucide-react';
 
 interface PaymentFormProps {
@@ -484,7 +485,7 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 }
 
 export function ComandaView() {
-  const { comandas, addComanda, addComandaClient, addComandaPayment, reopenComanda } = useApp();
+  const { comandas, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -559,6 +560,16 @@ export function ComandaView() {
     }
   };
 
+  const handleCloseComanda = async (comandaId: string) => {
+    try {
+      await closeComanda(comandaId);
+      toast.success('Comanda fechada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao fechar comanda:', error);
+      toast.error('Erro ao fechar comanda. Tente novamente.');
+    }
+  };
+
   // Função para calcular total pago considerando múltiplos pagamentos
   const calculateTotalPaid = (client: ComandaClient) => {
     if (client.payments && client.payments.length > 0) {
@@ -623,6 +634,8 @@ export function ComandaView() {
             {openComandas.map((comanda) => {
               const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
               const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
+              // Ajuste: valor pendente baseado no valor líquido, não no valor bruto
+              const totalPendente = totalClients - totalPaid;
               
               return (
                 <Card key={comanda.id}>
@@ -637,13 +650,23 @@ export function ComandaView() {
                           Abertura: {formatCurrency(comanda.openingValue)}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <Badge variant="outline" className="text-green-600 border-green-600">
-                          Aberta
-                        </Badge>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {comanda.clients.length} clientes
-                        </p>
+                      <div className="text-right flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCloseComanda(comanda.id)}
+                        >
+                          <Lock className="h-4 w-4 mr-1" />
+                          Fechar
+                        </Button>
+                        <div>
+                          <Badge variant="outline" className="text-green-600 border-green-600">
+                            Aberta
+                          </Badge>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {comanda.clients.length} clientes
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -667,7 +690,7 @@ export function ComandaView() {
                       <div className="text-center p-3 bg-orange-50 dark:bg-orange-950 rounded-lg">
                         <p className="text-sm text-muted-foreground">Pendente</p>
                         <p className="text-lg font-bold text-orange-600">
-                          {formatCurrency(totalClients - totalPaid)}
+                          {formatCurrency(totalPendente)}
                         </p>
                       </div>
                     </div>

@@ -42,6 +42,7 @@ interface AppContextType {
   addComandaClient: (client: Omit<ComandaClient, 'id' | 'createdAt'>) => Promise<void>;
   addComandaPayment: (payment: Omit<ComandaPayment, 'id' | 'createdAt'>) => Promise<void>;
   reopenComanda: (comandaId: string) => Promise<void>;
+  closeComanda: (comandaId: string) => Promise<void>;
   taxSettings: TaxSettings | null;
   setTaxSettings: (settings: TaxSettings) => void;
   updateTaxSettings: (settings: TaxSettings) => Promise<void>;
@@ -314,6 +315,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const closeComanda = async (comandaId: string) => {
+    try {
+      setComandasState(prev => prev.map(comanda => 
+        comanda.id === comandaId 
+          ? { ...comanda, status: 'fechada' as const }
+          : comanda
+      ));
+    } catch (error) {
+      console.error('Erro ao fechar comanda:', error);
+      throw error;
+    }
+  };
+
   // Funções para metas
   const updateGoal = async (goalData: Omit<Goal, 'id'>) => {
     try {
@@ -474,6 +488,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addComandaClient,
       addComandaPayment,
       reopenComanda,
+      closeComanda,
       taxSettings,
       setTaxSettings,
       updateTaxSettings,
