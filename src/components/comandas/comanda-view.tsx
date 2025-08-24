@@ -686,7 +686,7 @@ export function ComandaView() {
     
     return {
       id: `session-${session.id}`, // ID temporário para identificar que vem da sessão
-      comandaId: '', // Será preenchido quando necessário
+      comandaId: '', // Será preench ido quando necessário
       clientId: session.clientId,
       clientName: clientName,
       sessionId: session.id,
@@ -886,15 +886,22 @@ export function ComandaView() {
         isFromSession: client.id.startsWith('session-')
       });
 
-      // ✅ CORREÇÃO: Verificar se cliente já existe na comanda
+      // ✅ CORREÇÃO: Verificar se cliente já existe na comanda COM VERIFICAÇÃO DE UNDEFINED
       const existingComanda = comandas.find(c => c.id === comandaId);
-      const clientAlreadyExists = existingComanda?.clients.some(c => 
+      
+      if (!existingComanda) {
+        console.error('❌ Comanda não encontrada');
+        toast.error('Comanda não encontrada. Tente novamente.');
+        return;
+      }
+
+      const clientAlreadyExists = existingComanda.clients?.some(c => 
         c.sessionId === client.sessionId && c.clientName === client.clientName
       );
 
       if (clientAlreadyExists) {
         console.log('✅ Cliente já existe na comanda, abrindo pagamento diretamente');
-        const existingClient = existingComanda.clients.find(c => 
+        const existingClient = existingComanda.clients?.find(c => 
           c.sessionId === client.sessionId && c.clientName === client.clientName
         );
         
@@ -942,7 +949,7 @@ export function ComandaView() {
         setTimeout(() => {
           const updatedComanda = comandas.find(c => c.id === comandaId);
           if (updatedComanda) {
-            const addedClient = updatedComanda.clients.find(c => 
+            const addedClient = updatedComanda.clients?.find(c => 
               c.sessionId === client.sessionId && c.clientName === client.clientName
             );
             
@@ -1422,12 +1429,11 @@ export function ComandaView() {
               setSelectedComanda('');
             }}
           />
-        
         </DialogContent>
       </Dialog>
 
       {/* Dialog para registrar pagamento */}
-      <Dialog open={isPaymentFormOpen} onOpenChange={setIsPaymentFormOpen}>
+      <Dialog open={isPaymentFormOpen} onOpenChange={set IsPaymentFormOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
