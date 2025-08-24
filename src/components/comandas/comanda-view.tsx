@@ -816,6 +816,66 @@ export function ComandaView() {
     }
   };
 
+  // ✅ NOVA FUNCIONALIDADE: Adicionar cliente agendado à comanda antes do pagamento
+  const handlePaymentForScheduledClient = async (client: ComandaClient, comandaId: string) => {
+    try {
+      console.log('🎯 Adicionando cliente agendado à comanda antes do pagamento:', {
+        client: client,
+        comandaId: comandaId,
+        isFromSession: client.id.startsWith('session-')
+      });
+
+      // Se é um cliente da sessão, primeiro adicionar à comanda
+      if (client.id.startsWith('session-')) {
+        const clientData: Omit<ComandaClient, 'id' | 'createdAt'> = {
+          comandaId: comandaId,
+          clientId: client.clientId,
+          clientName: client.clientName,
+          sessionId: client.sessionId,
+          description: client.description,
+          value: client.value,
+          status: 'pendente',
+          payments: []
+        };
+
+        // Adicionar cliente à comanda
+        await addComandaClient(clientData);
+        
+        console.log('✅ Cliente agendado adicionado à comanda com sucesso');
+        
+        // Buscar o cliente recém-adicionado para obter o ID real
+        // Aguardar um momento para o estado atualizar
+        setTimeout(() => {
+          // Encontrar a comanda atualizada
+          const updatedComanda = comandas.find(c => c.id === comandaId);
+          if (updatedComanda) {
+            // Encontrar o cliente recém-adicionado
+            const addedClient = updatedComanda.clients.find(c => 
+              c.sessionId === client.sessionId && c.clientName === client.clientName
+            );
+            
+            if (addedClient) {
+              console.log('✅ Cliente encontrado na comanda, abrindo formulário de pagamento');
+              setSelectedClient(addedClient);
+              setIsPaymentFormOpen(true);
+            } else {
+              console.error('❌ Cliente não encontrado na comanda após adição');
+              toast.error('Erro ao encontrar cliente na comanda. Tente novamente.');
+            }
+          }
+        }, 500);
+        
+      } else {
+        // Cliente já está na comanda, abrir diretamente o pagamento
+        setSelectedClient(client);
+        setIsPaymentFormOpen(true);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao processar pagamento do cliente agendado:', error);
+      toast.error('Erro ao processar pagamento. Tente novamente.');
+    }
+  };
+
   // Aplicar filtros
   const filteredComandas = useMemo(() => {
     try {
@@ -1121,10 +1181,14 @@ export function ComandaView() {
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    setSelectedClient(client);
-                                    setIsPaymentFormOpen(true);
+                                    // ✅ NOVA LÓGICA: Tratar clientes agendados
+                                    if (isFromSession) {
+                                      handlePaymentForScheduledClient(client, comanda.id);
+                                    } else {
+                                      setSelectedClient(client);
+                                      setIsPaymentFormOpen(true);
+                                    }
                                   }}
-                                  disabled={isFromSession} // ✅ Desabilitar para clientes da sessão até serem adicionados à comanda
                                 >
                                   <DollarSign className="h-3 w-3 mr-1" />
                                   {clientTotalPaid > 0 ? 'Completar' : 'Pagar'}
