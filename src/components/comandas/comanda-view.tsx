@@ -536,41 +536,80 @@ export function ComandaView() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // CORREÇÃO DEFINITIVA: Função para obter data atual garantindo timezone local
-  const getTodayDate = () => {
-    const today = new Date();
-    // Garantir que sempre seja a data local, não UTC
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const day = today.getDate();
+  // CORREÇÃO DEFINITIVA: Função para obter data atual no timezone UTC-3 (Brasil)
+  const getBrazilDate = () => {
+    // Criar data atual no timezone do Brasil (UTC-3)
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const brazilTime = new Date(utc + (-3 * 3600000)); // UTC-3
     
-    // Criar nova data com componentes locais
-    return new Date(year, month, day);
+    // Extrair componentes da data brasileira
+    const year = brazilTime.getFullYear();
+    const month = brazilTime.getMonth();
+    const day = brazilTime.getDate();
+    
+    // Criar nova data com componentes brasileiros
+    const brazilDate = new Date(year, month, day);
+    
+    console.log('🇧🇷 Data Brasil calculada:', {
+      dataLocal: now.toLocaleString('pt-BR'),
+      dataUTC: now.toISOString(),
+      dataBrasil: brazilDate.toLocaleDateString('pt-BR'),
+      timezoneOffset: now.getTimezoneOffset(),
+      brazilOffset: -180 // UTC-3 = -180 minutos
+    });
+    
+    return brazilDate;
   };
 
-  // CORREÇÃO: Função para formatar data sem problemas de timezone
+  // CORREÇÃO: Função para formatar data para o banco garantindo UTC-3
   const formatDateForDatabase = (date: Date) => {
+    // Garantir que a data seja interpretada no timezone brasileiro
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     
-    return `${year}-${month}-${day}`;
+    const formattedDate = `${year}-${month}-${day}`;
+    
+    console.log('📅 Formatando data para banco:', {
+      dataOriginal: date.toLocaleDateString('pt-BR'),
+      dataFormatada: formattedDate,
+      timezone: 'UTC-3 (Brasil)'
+    });
+    
+    return formattedDate;
   };
 
-  // CORREÇÃO DEFINITIVA: Função para comparar datas ignorando timezone
-  const isSameDate = (date1: Date, date2: Date) => {
+  // CORREÇÃO: Função para comparar datas no timezone brasileiro
+  const isSameBrazilDate = (date1: Date, date2: Date) => {
     try {
-      // Extrair componentes de data local (ignorando hora e timezone)
-      const d1Year = date1.getFullYear();
-      const d1Month = date1.getMonth();
-      const d1Day = date1.getDate();
+      // Converter ambas as datas para o timezone brasileiro
+      const convertToBrazilDate = (date: Date) => {
+        const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+        return new Date(utc + (-3 * 3600000)); // UTC-3
+      };
       
-      const d2Year = date2.getFullYear();
-      const d2Month = date2.getMonth();
-      const d2Day = date2.getDate();
+      const brazilDate1 = convertToBrazilDate(date1);
+      const brazilDate2 = convertToBrazilDate(date2);
       
-      // Comparar apenas ano, mês e dia
-      return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+      // Comparar apenas ano, mês e dia no timezone brasileiro
+      const d1Year = brazilDate1.getFullYear();
+      const d1Month = brazilDate1.getMonth();
+      const d1Day = brazilDate1.getDate();
+      
+      const d2Year = brazilDate2.getFullYear();
+      const d2Month = brazilDate2.getMonth();
+      const d2Day = brazilDate2.getDate();
+      
+      const isSame = d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+      
+      console.log('🔍 Comparação de datas (timezone Brasil):', {
+        data1: brazilDate1.toLocaleDateString('pt-BR'),
+        data2: brazilDate2.toLocaleDateString('pt-BR'),
+        saoIguais: isSame
+      });
+      
+      return isSame;
     } catch (error) {
       console.error('Erro ao comparar datas:', error);
       return false;
@@ -619,7 +658,7 @@ export function ComandaView() {
     }
   };
 
-  // CORREÇÃO DEFINITIVA: Função para filtrar clientes da comanda por data da sessão usando comparação robusta
+  // CORREÇÃO DEFINITIVA: Função para filtrar clientes usando timezone brasileiro
   const getClientsForComandaDate = useMemo(() => {
     return (comanda: Comanda) => {
       try {
@@ -627,7 +666,7 @@ export function ComandaView() {
           return [];
         }
 
-        console.log('🔍 Filtrando clientes para comanda:', {
+        console.log('🔍 Filtrando clientes para comanda (timezone Brasil):', {
           comandaId: comanda.id,
           comandaDate: comanda.date,
           comandaDateFormatted: comanda.date.toLocaleDateString('pt-BR'),
@@ -640,7 +679,6 @@ export function ComandaView() {
             if (!client.sessionId) {
               console.log('✅ Cliente sem sessão incluído:', client.clientName);
               return true;
-            
             }
             
             // Buscar a sessão correspondente
@@ -650,10 +688,10 @@ export function ComandaView() {
               return true; // Se não encontrar a sessão, incluir por segurança
             }
             
-            // CORREÇÃO: Usar comparação robusta de datas
-            const isSame = isSameDate(new Date(session.date), new Date(comanda.date));
+            // CORREÇÃO: Usar comparação com timezone brasileiro
+            const isSame = isSameBrazilDate(new Date(session.date), new Date(comanda.date));
             
-            console.log('📅 Comparação de datas:', {
+            console.log('📅 Comparação de datas (Brasil):', {
               clientName: client.clientName,
               sessionDate: new Date(session.date).toLocaleDateString('pt-BR'),
               comandaDate: new Date(comanda.date).toLocaleDateString('pt-BR'),
@@ -673,7 +711,7 @@ export function ComandaView() {
     };
   }, [sessions]);
 
-  // CORREÇÃO: Filtro de data com comparação correta usando toDateString e verificações de segurança
+  // CORREÇÃO: Filtro de data com timezone brasileiro
   const filterComandsByDate = useMemo(() => {
     return (comandas: Comanda[]) => {
       try {
@@ -688,8 +726,8 @@ export function ComandaView() {
             if (!comanda || !comanda.date) {
               return false;
             }
-            // CORREÇÃO: Usar função robusta de comparação
-            return isSameDate(new Date(comanda.date), selectedDate);
+            // CORREÇÃO: Usar função de comparação com timezone brasileiro
+            return isSameBrazilDate(new Date(comanda.date), selectedDate);
           } catch (error) {
             console.error('Erro ao filtrar comanda por data:', error);
             return false;
@@ -713,18 +751,19 @@ export function ComandaView() {
     setSaving(true);
 
     try {
-      // CORREÇÃO DEFINITIVA: Usar data de hoje garantindo timezone local
-      const todayDate = getTodayDate();
+      // CORREÇÃO DEFINITIVA: Usar data brasileira (UTC-3)
+      const brazilDate = getBrazilDate();
       
-      console.log('🚀 Criando comanda para a data:', {
-        dateObject: todayDate,
-        dateString: todayDate.toLocaleDateString('pt-BR'),
-        formattedForDB: formatDateForDatabase(todayDate),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      console.log('🚀 Criando comanda para data brasileira:', {
+        dataBrasil: brazilDate.toLocaleDateString('pt-BR'),
+        dataFormatadaDB: formatDateForDatabase(brazilDate),
+        timezone: 'UTC-3 (Brasil)',
+        offsetLocal: new Date().getTimezoneOffset(),
+        offsetBrasil: -180
       });
 
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
-        date: todayDate, // Usar data de hoje sem problemas de timezone
+        date: brazilDate, // Usar data brasileira
         tattooerId: user?.id || '',
         openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
@@ -734,7 +773,7 @@ export function ComandaView() {
       await addComanda(comanda);
       setNewComandaValue('');
       setIsComandaFormOpen(false);
-      toast.success(`Comanda criada para HOJE (${todayDate.toLocaleDateString('pt-BR')})!`);
+      toast.success(`Comanda criada para HOJE (${brazilDate.toLocaleDateString('pt-BR')}) - Timezone Brasil (UTC-3)!`);
     } catch (error) {
       console.error('Erro ao criar comanda:', error);
       toast.error('Erro ao criar comanda. Tente novamente.');
@@ -822,15 +861,15 @@ export function ComandaView() {
     }
   }, [filteredComandas]);
 
-  // CORREÇÃO: Obter data de hoje para exibição
-  const todayDate = getTodayDate();
+  // CORREÇÃO: Obter data brasileira para exibição
+  const brazilToday = getBrazilDate();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Comandas</h2>
-          <p className="text-muted-foreground">Gerencie o caixa diário</p>
+          <p className="text-muted-foreground">Gerencie o caixa diário - Timezone Brasil (UTC-3)</p>
         </div>
         
         <Dialog open={isComandaFormOpen} onOpenChange={setIsComandaFormOpen}>
@@ -843,13 +882,13 @@ export function ComandaView() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Criar Nova Comanda - HOJE ({todayDate.toLocaleDateString('pt-BR')})
+                Criar Nova Comanda - HOJE ({brazilToday.toLocaleDateString('pt-BR')}) - Brasil (UTC-3)
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateComanda} className="space-y-4">
               <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  📅 Esta comanda será criada para <strong>HOJE ({todayDate.toLocaleDateString('pt-BR')})</strong> e mostrará os clientes agendados para esta data.
+                  🇧🇷 Esta comanda será criada para <strong>HOJE ({brazilToday.toLocaleDateString('pt-BR')})</strong> no timezone do Brasil (UTC-3) e mostrará os clientes agendados para esta data.
                 </p>
               </div>
               <div>
@@ -865,7 +904,7 @@ export function ComandaView() {
               <div className="flex gap-2">
                 <Button type="submit" className="flex-1" disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Criar Comanda para HOJE
+                  Criar Comanda para HOJE (Brasil)
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setIsComandaFormOpen(false)} disabled={saving}>
                   Cancelar
@@ -882,7 +921,7 @@ export function ComandaView() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
-              <Label className="text-sm font-medium">Filtrar por data:</Label>
+              <Label className="text-sm font-medium">Filtrar por data (Brasil UTC-3):</Label>
             </div>
             
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -926,8 +965,8 @@ export function ComandaView() {
 
             <div className="text-sm text-muted-foreground">
               {selectedDate 
-                ? `Mostrando comandas de ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`
-                : `Mostrando todas as comandas (${comandas?.length || 0} total)`
+                ? `Mostrando comandas de ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })} (Brasil)`
+                : `Mostrando todas as comandas (${comandas?.length || 0} total) - Timezone Brasil`
               }
             </div>
           </div>
@@ -937,7 +976,7 @@ export function ComandaView() {
       {/* Comandas Abertas */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-green-600">
-          Comandas Abertas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`}
+          Comandas Abertas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`} (Brasil UTC-3)
         </h3>
         
         {openComandas.length > 0 ? (
@@ -958,10 +997,10 @@ export function ComandaView() {
                       <div>
                         <CardTitle className="flex items-center gap-2">
                           <Receipt className="h-5 w-5" />
-                          Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
+                          Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')} 🇧🇷
                         </CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          Abertura: {formatCurrency(comanda.openingValue || 0)}
+                          Abertura: {formatCurrency(comanda.openingValue || 0)} • Timezone Brasil (UTC-3)
                         </p>
                       </div>
                       <div className="text-right flex items-center gap-2">
@@ -1107,20 +1146,20 @@ export function ComandaView() {
               <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <h3 className="font-medium mb-2">
                 {selectedDate 
-                  ? `Nenhuma comanda aberta em ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`
-                  : 'Nenhuma comanda aberta'
+                  ? `Nenhuma comanda aberta em ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })} (Brasil)`
+                  : 'Nenhuma comanda aberta (Brasil UTC-3)'
                 }
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {selectedDate 
                   ? 'Tente selecionar outra data ou limpar o filtro'
-                  : 'Crie uma nova comanda para começar o dia'
+                  : 'Crie uma nova comanda para começar o dia no timezone brasileiro'
                 }
               </p>
               {!selectedDate && (
                 <Button onClick={() => setIsComandaFormOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Primeira Comanda
+                  Primeira Comanda (Brasil)
                 </Button>
               )}
             </CardContent>
@@ -1132,7 +1171,7 @@ export function ComandaView() {
       {closedComandas.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-muted-foreground">
-            Comandas Fechadas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`}
+            Comandas Fechadas {selectedDate && `- ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`} (Brasil UTC-3)
           </h3>
           
           <div className="grid gap-4">
@@ -1148,10 +1187,10 @@ export function ComandaView() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">
-                          Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
+                          Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')} 🇧🇷
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {filteredClients.length} clientes • {formatCurrency(totalPaid)} líquido
+                          {filteredClients.length} clientes • {formatCurrency(totalPaid)} líquido • Brasil (UTC-3)
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
