@@ -530,6 +530,7 @@ export function ComandaView() {
   const [selectedClient, setSelectedClient] = useState<ComandaClient | null>(null);
   const [newComandaValue, setNewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [closingComanda, setClosingComanda] = useState<string | null>(null); // CORREÇÃO: Estado para controlar qual comanda está sendo fechada
   
   // Estados para filtro de data
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -546,48 +547,92 @@ export function ComandaView() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // CORREÇÃO: Função para calcular total pago (única definição)
+  // CORREÇÃO: Função para calcular total pago com verificações de segurança
   const calculateTotalPaid = useMemo(() => {
     return (client: ComandaClient) => {
-      return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
+      try {
+        if (!client || !client.payments || !Array.isArray(client.payments)) {
+          return 0;
+        }
+        return client.payments.reduce((sum, payment) => {
+          if (!payment || typeof payment.netValue !== 'number') {
+            return sum;
+          }
+          return sum + payment.netValue;
+        }, 0);
+      } catch (error) {
+        console.error('Erro ao calcular total pago:', error);
+        return 0;
+      }
     };
   }, []);
 
-  // IMPLEMENTAÇÃO: Função para filtrar clientes da comanda por data da sessão
+  // IMPLEMENTAÇÃO: Função para filtrar clientes da comanda por data da sessão com verificações de segurança
   const getClientsForComandaDate = useMemo(() => {
     return (comanda: Comanda) => {
-      const comandaDateString = new Date(comanda.date).toDateString();
-      
-      return comanda.clients.filter(client => {
-        // Se não tem sessionId, incluir o cliente (pode ser cliente avulso)
-        if (!client.sessionId) {
-          return true;
+      try {
+        if (!comanda || !comanda.date || !comanda.clients || !Array.isArray(comanda.clients)) {
+          return [];
         }
+
+        const comandaDateString = new Date(comanda.date).toDateString();
         
-        // Buscar a sessão correspondente
-        const session = sessions.find(s => s.id === client.sessionId);
-        if (!session) {
-          return true; // Se não encontrar a sessão, incluir por segurança
-        }
-        
-        // Comparar as datas usando toDateString para evitar problemas de timezone
-        const sessionDateString = new Date(session.date).toDateString();
-        return sessionDateString === comandaDateString;
-      });
+        return comanda.clients.filter(client => {
+          try {
+            // Se não tem sessionId, incluir o cliente (pode ser cliente avulso)
+            if (!client.sessionId) {
+              return true;
+            }
+            
+            // Buscar a sessão correspondente
+            const session = sessions.find(s => s && s.id === client.sessionId);
+            if (!session || !session.date) {
+              return true; // Se não encontrar a sessão, incluir por segurança
+            }
+            
+            // Comparar as datas usando toDateString para evitar problemas de timezone
+            const sessionDateString = new Date(session.date).toDateString();
+            return sessionDateString === comandaDateString;
+          } catch (error) {
+            console.error('Erro ao filtrar cliente:', error);
+            return true; // Em caso de erro, incluir o cliente
+          }
+        });
+      } catch (error) {
+        console.error('Erro ao filtrar clientes da comanda:', error);
+        return [];
+      }
     };
   }, [sessions]);
 
-  // CORREÇÃO: Filtro de data com comparação correta usando toDateString
+  // CORREÇÃO: Filtro de data com comparação correta usando toDateString e verificações de segurança
   const filterComandsByDate = useMemo(() => {
     return (comandas: Comanda[]) => {
-      if (!selectedDate) return comandas;
-      
-      const selectedDateString = selectedDate.toDateString();
-      
-      return comandas.filter(comanda => {
-        const comandaDate = new Date(comanda.date);
-        return comandaDate.toDateString() === selectedDateString;
-      });
+      try {
+        if (!comandas || !Array.isArray(comandas)) {
+          return [];
+        }
+
+        if (!selectedDate) return comandas;
+        
+        const selectedDateString = selectedDate.toDateString();
+        
+        return comandas.filter(comanda => {
+          try {
+            if (!comanda || !comanda.date) {
+              return false;
+            }
+            const comandaDate = new Date(comanda.date);
+            return comandaDate.toDateString() === selectedDateString;
+          } catch (error) {
+            console.error('Erro ao filtrar comanda por data:', error);
+            return false;
+          }
+        });
+      } catch (error) {
+        console.error('Erro ao filtrar comandas:', error);
+        return [];
+      }
     };
   }, [selectedDate]);
 
@@ -603,7 +648,7 @@ export function ComandaView() {
 
     try {
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
-        date: getCurrentDate(), // CORREÇÃO: Usar função que garante data atual
+        date: getCurrentDate(),
         tattooerId: user?.id || '',
         openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
@@ -654,20 +699,53 @@ export function ComandaView() {
     }
   };
 
+  // CORREÇÃO: Melho tratamento de erro e estado de loading para fechar comanda
   const handleCloseComanda = async (comandaId: string) => {
+    if (!comandaId) {
+      toast.error('ID da comanda é inválido');
+      return;
+    }
+
+    setClosingComanda(comandaId); // Marcar qual comanda está sendo fechada
+
     try {
       await closeComanda(comandaId);
       toast.success('Comanda fechada com sucesso!');
     } catch (error) {
       console.error('Erro ao fechar comanda:', error);
       toast.error('Erro ao fechar comanda. Tente novamente.');
+    } finally {
+      setClosingComanda(null); // Limpar estado de loading
     }
   };
 
-  // CORREÇÃO: Aplicar filtro de data com memoização
-  const filteredComandas = useMemo(() => filterComandsByDate(comandas), [comandas, filterComandsByDate]);
-  const openComandas = useMemo(() => filteredComandas.filter(c => c.status === 'aberta'), [filteredComandas]);
-  const closedComandas = useMemo(() => filteredComandas.filter(c => c.status === 'fechada'), [filteredComandas]);
+  // CORREÇÃO: Aplicar filtro de data com memoização e verificações de segurança
+  const filteredComandas = useMemo(() => {
+    try {
+      return filterComandsByDate(comandas || []);
+    } catch (error) {
+      console.error('Erro ao filtrar comandas:', error);
+      return [];
+    }
+  }, [comandas, filterComandsByDate]);
+
+  const openComandas = useMemo(() => {
+    try {
+      return filteredComandas.filter(c => c && c.status === 'aberta');
+    } catch (error) {
+      console.error('Erro ao filtrar comandas abertas:', error);
+      return [];
+    }
+  }, [filteredComandas]);
+
+  const closedComandas = useMemo(() => {
+    try {
+      return filteredComandas.filter(c => c && c.status === 'fechada');
+    } catch (error) {
+      console.error('Erro ao filtrar comandas fechadas:', error);
+      return [];
+    }
+  }, [filteredComandas]);
 
   return (
     <div className="space-y-6">
@@ -771,7 +849,7 @@ export function ComandaView() {
             <div className="text-sm text-muted-foreground">
               {selectedDate 
                 ? `Mostrando comandas de ${format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}`
-                : `Mostrando todas as comandas (${comandas.length} total)`
+                : `Mostrando todas as comandas (${comandas?.length || 0} total)`
               }
             </div>
           </div>
@@ -787,18 +865,36 @@ export function ComandaView() {
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
+              if (!comanda || !comanda.id) return null; // CORREÇÃO: Verificação de segurança
+
               // IMPLEMENTAÇÃO: Usar função para filtrar clientes por data da sessão
               const filteredClients = getClientsForComandaDate(comanda);
               
-              // CORREÇÃO: Memoizar cálculos para performance usando clientes filtrados
-              const totalClients = useMemo(() => 
-                filteredClients.reduce((sum, client) => sum + client.value, 0), 
-                [filteredClients]
-              );
-              const totalPaid = useMemo(() => 
-                filteredClients.reduce((sum, client) => sum + calculateTotalPaid(client), 0), 
-                [filteredClients, calculateTotalPaid]
-              );
+              // CORREÇÃO: Memoizar cálculos para performance usando clientes filtrados com verificações de segurança
+              const totalClients = useMemo(() => {
+                try {
+                  return filteredClients.reduce((sum, client) => {
+                    if (!client || typeof client.value !== 'number') return sum;
+                    return sum + client.value;
+                  }, 0);
+                } catch (error) {
+                  console.error('Erro ao calcular total clientes:', error);
+                  return 0;
+                }
+              }, [filteredClients]);
+
+              const totalPaid = useMemo(() => {
+                try {
+                  return filteredClients.reduce((sum, client) => {
+                    if (!client) return sum;
+                    return sum + calculateTotalPaid(client);
+                  }, 0);
+                } catch (error) {
+                  console.error('Erro ao calcular total pago:', error);
+                  return 0;
+                }
+              }, [filteredClients, calculateTotalPaid]);
+
               const totalPendente = totalClients - totalPaid;
               
               return (
@@ -811,16 +907,24 @@ export function ComandaView() {
                           Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          Abertura: {formatCurrency(comanda.openingValue)}
+                          Abertura: {formatCurrency(comanda.openingValue || 0)}
                         </p>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        {/* CORREÇÃO: Adicionar confirmação antes de fechar comanda */}
+                        {/* CORREÇÃO: Adicionar confirmação antes de fechar comanda com estado de loading */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Lock className="h-4 w-4 mr-1" />
-                              Fechar
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={closingComanda === comanda.id} // Desabilitar se está fechando
+                            >
+                              {closingComanda === comanda.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Lock className="h-4 w-4 mr-1" />
+                              )}
+                              {closingComanda === comanda.id ? 'Fechando...' : 'Fechar'}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -832,8 +936,11 @@ export function ComandaView() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleCloseComanda(comanda.id)}>
-                                Fechar Comanda
+                              <AlertDialogAction 
+                                onClick={() => handleCloseComanda(comanda.id)}
+                                disabled={closingComanda === comanda.id}
+                              >
+                                {closingComanda === comanda.id ? 'Fechando...' : 'Fechar Comanda'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -878,14 +985,16 @@ export function ComandaView() {
                     <div className="space-y-3">
                       {/* IMPLEMENTAÇÃO: Usar clientes filtrados por data da sessão */}
                       {filteredClients.map((client) => {
+                        if (!client || !client.id) return null; // CORREÇÃO: Verificação de segurança
+
                         const clientTotalPaid = calculateTotalPaid(client);
-                        const hasMultiplePayments = client.payments.length > 1;
+                        const hasMultiplePayments = client.payments && client.payments.length > 1;
                         
                         return (
                           <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div>
-                              <p className="font-medium">{client.clientName}</p>
-                              <p className="text-sm text-muted-foreground">{client.description}</p>
+                              <p className="font-medium">{client.clientName || 'Cliente sem nome'}</p>
+                              <p className="text-sm text-muted-foreground">{client.description || 'Sem descrição'}</p>
                               {hasMultiplePayments && (
                                 <p className="text-xs text-blue-600">
                                   {client.payments.length} formas de pagamento
@@ -894,7 +1003,7 @@ export function ComandaView() {
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
-                                <p className="font-bold">{formatCurrency(client.value)}</p>
+                                <p className="font-bold">{formatCurrency(client.value || 0)}</p>
                                 {clientTotalPaid > 0 && (
                                   <p className="text-xs text-green-600">
                                     Líquido: {formatCurrency(clientTotalPaid)}
@@ -976,10 +1085,18 @@ export function ComandaView() {
           
           <div className="grid gap-4">
             {closedComandas.slice(0, 10).map((comanda) => {
+              if (!comanda || !comanda.id) return null; // CORREÇÃO: Verificação de segurança
+
               // IMPLEMENTAÇÃO: Aplicar filtro também nas comandas fechadas
               const filteredClients = getClientsForComandaDate(comanda);
-              const totalClients = filteredClients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = filteredClients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
+              const totalClients = filteredClients.reduce((sum, client) => {
+                if (!client || typeof client.value !== 'number') return sum;
+                return sum + client.value;
+              }, 0);
+              const totalPaid = filteredClients.reduce((sum, client) => {
+                if (!client) return sum;
+                return sum + calculateTotalPaid(client);
+              }, 0);
               
               return (
                 <Card key={comanda.id} className="opacity-75">
