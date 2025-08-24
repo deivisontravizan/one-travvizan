@@ -716,7 +716,7 @@ export function ComandaView() {
     }
   };
 
-  const handleSavePayment = async (paymentData: Omit<ComandaPayment, 'i d' | 'createdAt'>) => {
+  const handleSavePayment = async (paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>) => {
     try {
       await addComandaPayment(paymentData);
       setIsPaymentFormOpen(false);
@@ -748,7 +748,7 @@ export function ComandaView() {
     try {
       await closeComanda(comandaId);
       toast.success('Comanda fechada com sucesso!');
-    } catch (error) {
+    }  catch (error) {
       console.error('Erro ao fechar comanda:', error);
       toast.error('Erro ao fechar comanda. Tente novamente.');
     } finally {
