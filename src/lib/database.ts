@@ -813,13 +813,14 @@ export async function getTaxSettings(): Promise<TaxSettings | null> {
       creditCardCashRate: data.credit_card_cash_rate,
       creditCardInstallmentRate: data.credit_card_installment_rate,
       debitCardRate: data.debit_card_rate,
-      pixRate: data.p ix_rate,
+      pixRate: data.pix_rate,
       installmentRates: {
         twoInstallments: 4.0,
         threeInstallments: 4.5,
         fourInstallments: 5.0,
         fiveInstallments: 5.5,
         sixInstallments: 6.0,
+        
         sevenInstallments: 6.5,
         eightInstallments: 7.0,
         nineInstallments: 7.5,
