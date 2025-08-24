@@ -677,6 +677,7 @@ export function ComandaView() {
       console.error('Erro ao buscar sessões agendadas:', error);
       return [];
     }
+  
   };
 
   // ✅ NOVA FUNCIONALIDADE: Converter sessão agendada em formato de cliente da comanda
@@ -877,7 +878,7 @@ export function ComandaView() {
     }
   };
 
-  // ✅ NOVA FUNCIONALIDADE CORRIGIDA: Adicionar cliente agendado à comanda antes do pagamento
+  // ✅ CORREÇÃO: Função simplificada sem setTimeout
   const handlePaymentForScheduledClient = async (client: ComandaClient, comandaId: string) => {
     try {
       console.log('🎯 Processando pagamento para cliente:', {
@@ -886,7 +887,7 @@ export function ComandaView() {
         isFromSession: client.id.startsWith('session-')
       });
 
-      // ✅ CORREÇÃO: Verificar se cliente já existe na comanda COM VERIFICAÇÃO DE UNDEFINED
+      // ✅ CORREÇÃO: Verificar se cliente já existe na comanda
       const existingComanda = comandas.find(c => c.id === comandaId);
       
       if (!existingComanda) {
@@ -940,45 +941,29 @@ export function ComandaView() {
           payments: []
         };
 
-        // Adicionar cliente à comanda
+        // ✅ CORREÇÃO: Adicionar cliente e abrir pagamento diretamente
         await addComandaClient(clientData);
         
         console.log('✅ Cliente agendado adicionado à comanda com sucesso');
         
-        // Aguardar um momento para o estado atualizar e abrir pagamento
-        setTimeout(() => {
-          const updatedComanda = comandas.find(c => c.id === comandaId);
-          if (updatedComanda) {
-            const addedClient = updatedComanda.clients?.find(c => 
-              c.sessionId === client.sessionId && c.clientName === client.clientName
-            );
-            
-            if (addedClient) {
-              console.log('✅ Cliente encontrado na comanda, abrindo formulário de pagamento');
-              
-              // ✅ Calcular informações do sinal
-              let sessionInfo = undefined;
-              if (client.sessionId) {
-                const signalPaid = getSignalPaidForSession(client.sessionId);
-                const totalValue = client.value;
-                const remainingValue = totalValue - signalPaid;
-                
-                sessionInfo = {
-                  signalPaid,
-                  totalValue,
-                  remainingValue: remainingValue > 0 ? remainingValue : 0
-                };
-              }
-              
-              setSelectedClient(addedClient);
-              setSelectedSessionInfo(sessionInfo);
-              setIsPaymentFormOpen(true);
-            } else {
-              console.error('❌ Cliente não encontrado na comanda após adição');
-              toast.error('Erro ao encontrar cliente na comanda. Tente novamente.');
-            }
-          }
-        }, 500);
+        // ✅ Calcular informações do sinal
+        let sessionInfo = undefined;
+        if (client.sessionId) {
+          const signalPaid = getSignalPaidForSession(client.sessionId);
+          const totalValue = client.value;
+          const remainingValue = totalValue - signalPaid;
+          
+          sessionInfo = {
+            signalPaid,
+            totalValue,
+            remainingValue: remainingValue > 0 ? remainingValue : 0
+          };
+        }
+        
+        // ✅ Usar o cliente original com sessionInfo
+        setSelectedClient(client);
+        setSelectedSessionInfo(sessionInfo);
+        setIsPaymentFormOpen(true);
         
       } else {
         // Cliente já está na comanda, abrir diretamente o pagamento
@@ -1413,7 +1398,6 @@ export function ComandaView() {
             })}
           </div>
         </div>
-      
       )}
 
       {/* Dialog para adicionar cliente */}
