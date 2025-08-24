@@ -557,6 +557,26 @@ export function ComandaView() {
     return `${year}-${month}-${day}`;
   };
 
+  // CORREÇÃO DEFINITIVA: Função para comparar datas ignorando timezone
+  const isSameDate = (date1: Date, date2: Date) => {
+    try {
+      // Extrair componentes de data local (ignorando hora e timezone)
+      const d1Year = date1.getFullYear();
+      const d1Month = date1.getMonth();
+      const d1Day = date1.getDate();
+      
+      const d2Year = date2.getFullYear();
+      const d2Month = date2.getMonth();
+      const d2Day = date2.getDate();
+      
+      // Comparar apenas ano, mês e dia
+      return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+    } catch (error) {
+      console.error('Erro ao comparar datas:', error);
+      return false;
+    }
+  };
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
@@ -599,7 +619,7 @@ export function ComandaView() {
     }
   };
 
-  // IMPLEMENTAÇÃO: Função para filtrar clientes da comanda por data da sessão com verificações de segurança
+  // CORREÇÃO DEFINITIVA: Função para filtrar clientes da comanda por data da sessão usando comparação robusta
   const getClientsForComandaDate = useMemo(() => {
     return (comanda: Comanda) => {
       try {
@@ -607,24 +627,40 @@ export function ComandaView() {
           return [];
         }
 
-        const comandaDateString = new Date(comanda.date).toDateString();
+        console.log('🔍 Filtrando clientes para comanda:', {
+          comandaId: comanda.id,
+          comandaDate: comanda.date,
+          comandaDateFormatted: comanda.date.toLocaleDateString('pt-BR'),
+          totalClients: comanda.clients.length
+        });
         
         return comanda.clients.filter(client => {
           try {
             // Se não tem sessionId, incluir o cliente (pode ser cliente avulso)
             if (!client.sessionId) {
+              console.log('✅ Cliente sem sessão incluído:', client.clientName);
               return true;
+            
             }
             
             // Buscar a sessão correspondente
             const session = sessions.find(s => s && s.id === client.sessionId);
             if (!session || !session.date) {
+              console.log('⚠️ Sessão não encontrada para cliente:', client.clientName);
               return true; // Se não encontrar a sessão, incluir por segurança
             }
             
-            // Comparar as datas usando toDateString para evitar problemas de timezone
-            const sessionDateString = new Date(session.date).toDateString();
-            return sessionDateString === comandaDateString;
+            // CORREÇÃO: Usar comparação robusta de datas
+            const isSame = isSameDate(new Date(session.date), new Date(comanda.date));
+            
+            console.log('📅 Comparação de datas:', {
+              clientName: client.clientName,
+              sessionDate: new Date(session.date).toLocaleDateString('pt-BR'),
+              comandaDate: new Date(comanda.date).toLocaleDateString('pt-BR'),
+              isSameDate: isSame
+            });
+            
+            return isSame;
           } catch (error) {
             console.error('Erro ao filtrar cliente:', error);
             return true; // Em caso de erro, incluir o cliente
@@ -647,15 +683,13 @@ export function ComandaView() {
 
         if (!selectedDate) return comandas;
         
-        const selectedDateString = selectedDate.toDateString();
-        
         return comandas.filter(comanda => {
           try {
             if (!comanda || !comanda.date) {
               return false;
             }
-            const comandaDate = new Date(comanda.date);
-            return comandaDate.toDateString() === selectedDateString;
+            // CORREÇÃO: Usar função robusta de comparação
+            return isSameDate(new Date(comanda.date), selectedDate);
           } catch (error) {
             console.error('Erro ao filtrar comanda por data:', error);
             return false;
@@ -682,16 +716,17 @@ export function ComandaView() {
       // CORREÇÃO DEFINITIVA: Usar data de hoje garantindo timezone local
       const todayDate = getTodayDate();
       
-      console.log('Criando comanda para a data:', {
+      console.log('🚀 Criando comanda para a data:', {
         dateObject: todayDate,
         dateString: todayDate.toLocaleDateString('pt-BR'),
-        formattedForDB: formatDateForDatabase(todayDate)
+        formattedForDB: formatDateForDatabase(todayDate),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
 
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
         date: todayDate, // Usar data de hoje sem problemas de timezone
         tattooerId: user?.id || '',
-        openingValue: parseFloat(newComandaValue.replace(',', '.')), // CORREÇÃO: Corrigir nome da variável
+        openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
         clients: []
       };
