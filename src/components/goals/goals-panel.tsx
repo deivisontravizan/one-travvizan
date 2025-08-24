@@ -147,8 +147,8 @@ export function GoalsPanel() {
       })
       .reduce((sum, comanda) => {
         return sum + comanda.clients
-          .filter(client => client.payment)
-          .reduce((clientSum, client) => clientSum + (client.payment?.netValue || 0), 0);
+          .filter(client => client.payments && client.payments.length > 0)
+          .reduce((clientSum, client) => clientSum + client.payments.reduce((paySum, payment) => paySum + payment.netValue, 0), 0);
       }, 0);
 
     return agendaRevenue + comandaRevenue;
