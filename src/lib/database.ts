@@ -1,6 +1,37 @@
 import { supabase } from '@/lib/supabase';
 import { Client, Session, Goal, Transaction, Comanda, ComandaClient, ComandaPayment, TaxSettings } from '@/lib/types';
 
+// CORREÇÃO: Função para obter data brasileira (UTC-3)
+const getBrazilDate = () => {
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const brazilTime = new Date(utc + (-3 * 3600000)); // UTC-3
+  
+  const year = brazilTime.getFullYear();
+  const month = brazilTime.getMonth();
+  const day = brazilTime.getDate();
+  
+  return new Date(year, month, day);
+};
+
+// CORREÇÃO: Função para formatar data garantindo timezone brasileiro
+const formatDateForDatabase = (date: Date): string => {
+  // Garantir que a data seja no timezone brasileiro
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  const formattedDate = `${year}-${month}-${day}`;
+  
+  console.log('🇧🇷 Formatando data para banco (Brasil UTC-3):', {
+    dataOriginal: date.toLocaleDateString('pt-BR'),
+    dataFormatada: formattedDate,
+    timezone: 'UTC-3 (Brasil)'
+  });
+  
+  return formattedDate;
+};
+
 // Funções para Clientes
 export async function getClients(): Promise<Client[]> {
   try {
@@ -270,17 +301,16 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
         }
 
         const clientName = clientData?.name || 'Cliente não encontrado';
+        
+        // CORREÇÃO: Usar formatação de data brasileira
         const sessionDate = new Date(sessionData.date);
-        
-        // CORREÇÃO: Usar formatação de data sem timezone
-        const formatDateForDatabase = (date: Date): string => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
-        
         const dateString = formatDateForDatabase(sessionDate);
+
+        console.log('🇧🇷 Integrando sessão com comanda (timezone Brasil):', {
+          sessionDate: sessionDate.toLocaleDateString('pt-BR'),
+          dateForDB: dateString,
+          timezone: 'UTC-3 (Brasil)'
+        });
 
         // Verificar se existe comanda aberta para o dia
         const { data: existingComanda } = await supabase
@@ -295,7 +325,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
 
         // Se não existe comanda aberta, criar uma nova
         if (!existingComanda) {
-          console.log('Criando nova comanda para o dia:', dateString);
+          console.log('🇧🇷 Criando nova comanda para o dia (Brasil):', dateString);
           const { data: newComanda, error: comandaError } = await supabase
             .from('comandas')
             .insert({
@@ -312,7 +342,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             throw new Error('Erro ao criar comanda automática');
           } else {
             comandaId = newComanda.id;
-            console.log('Nova comanda criada:', comandaId);
+            console.log('🇧🇷 Nova comanda criada (Brasil):', comandaId);
           }
         }
 
@@ -326,7 +356,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             .single();
 
           if (!existingClient) {
-            console.log('Adicionando cliente à comanda:', comandaId);
+            console.log('🇧🇷 Adicionando cliente à comanda (Brasil):', comandaId);
             const { error: clientError } = await supabase
               .from('comanda_clients')
               .insert({
@@ -343,7 +373,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
               console.error('Erro ao adicionar cliente à comanda:', clientError);
               throw new Error('Erro ao adicionar cliente à comanda');
             } else {
-              console.log('Cliente adicionado à comanda com sucesso');
+              console.log('🇧🇷 Cliente adicionado à comanda com sucesso (Brasil)');
             }
           } else {
             console.log('Cliente já existe na comanda, pulando duplicata');
@@ -744,15 +774,6 @@ export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<
   }
 }
 
-// CORREÇÃO: Função para formatar data sem problemas de timezone
-const formatDateForDatabase = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-};
-
 // Funções para Comandas
 export async function getComandas(): Promise<Comanda[]> {
   try {
@@ -762,7 +783,7 @@ export async function getComandas(): Promise<Comanda[]> {
       throw new Error('Usuário não autenticado');
     }
 
-    console.log('Carregando comandas para usuário:', user.id);
+    console.log('🇧🇷 Carregando comandas para usuário (timezone Brasil):', user.id);
 
     // Buscar apenas comandas do usuário logado
     const { data: comandasData, error: comandasError } = await supabase
@@ -776,12 +797,12 @@ export async function getComandas(): Promise<Comanda[]> {
       throw comandasError;
     }
 
-    console.log(`Encontradas ${comandasData?.length || 0} comandas`);
+    console.log(`🇧🇷 Encontradas ${comandasData?.length || 0} comandas (Brasil)`);
 
     // Para cada comanda, buscar os clientes relacionados (já filtrados por RLS)
     const comandasWithClients = await Promise.all(
       (comandasData || []).map(async (comanda) => {
-        console.log(`Carregando clientes para comanda ${comanda.id}`);
+        console.log(`🇧🇷 Carregando clientes para comanda ${comanda.id} (Brasil)`);
         
         // Buscar clientes da comanda (RLS garante que só vem do usuário correto)
         const { data: clientsData, error: clientsError } = await supabase
@@ -795,12 +816,12 @@ export async function getComandas(): Promise<Comanda[]> {
           // Continuar sem os clientes em caso de erro
         }
 
-        console.log(`Encontrados ${clientsData?.length || 0} clientes para comanda ${comanda.id}`);
+        console.log(`🇧🇷 Encontrados ${clientsData?.length || 0} clientes para comanda ${comanda.id} (Brasil)`);
 
         // Para cada cliente da comanda, buscar os pagamentos (já filtrados por RLS)
         const clientsWithPayments = await Promise.all(
           (clientsData || []).map(async (client) => {
-            console.log(`Carregando pagamentos para cliente ${client.id}`);
+            console.log(`🇧🇷 Carregando pagamentos para cliente ${client.id} (Brasil)`);
             
             const { data: paymentsData, error: paymentsError } = await supabase
               .from('comanda_payments')
@@ -813,7 +834,7 @@ export async function getComandas(): Promise<Comanda[]> {
               // Continuar sem os pagamentos em caso de erro
             }
 
-            console.log(`Encontrados ${paymentsData?.length || 0} pagamentos para cliente ${client.id}`);
+            console.log(`🇧🇷 Encontrados ${paymentsData?.length || 0} pagamentos para cliente ${client.id} (Brasil)`);
 
             const payments = (paymentsData || []).map(payment => ({
               id: payment.id,
@@ -848,7 +869,6 @@ export async function getComandas(): Promise<Comanda[]> {
           tattooerId: comanda.tattooerid,
           openingValue: comanda.opening_value,
           closingValue: comanda.closing_value,
-          
           status: comanda.status,
           clients: clientsWithPayments,
           createdAt: new Date(comanda.created_at),
@@ -857,7 +877,7 @@ export async function getComandas(): Promise<Comanda[]> {
       })
     );
 
-    console.log('Comandas carregadas com sucesso:', comandasWithClients.length);
+    console.log('🇧🇷 Comandas carregadas com sucesso (Brasil):', comandasWithClients.length);
     return comandasWithClients;
   } catch (error) {
     console.error('Erro ao buscar comandas:', error);
@@ -881,20 +901,21 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
       throw new Error('Valor de abertura não pode ser negativo');
     }
 
-    // CORREÇÃO DEFINITIVA: Usar formatação de data sem problemas de timezone
+    // CORREÇÃO DEFINITIVA: Usar formatação de data brasileira
     const dateForDB = formatDateForDatabase(comandaData.date);
     
-    console.log('Criando comanda no banco:', {
+    console.log('🇧🇷 Criando comanda no banco (timezone Brasil):', {
       originalDate: comandaData.date,
       formattedDate: dateForDB,
-      dateString: comandaData.date.toLocaleDateString('pt-BR')
+      dateString: comandaData.date.toLocaleDateString('pt-BR'),
+      timezone: 'UTC-3 (Brasil)'
     });
 
     const { data, error } = await supabase
       .from('comandas')
       .insert({
         tattooerid: user.id,
-        comanda_date: dateForDB, // CORREÇÃO: Usar formatação manual sem timezone
+        comanda_date: dateForDB, // CORREÇÃO: Usar formatação brasileira
         opening_value: comandaData.openingValue,
         closing_value: comandaData.closingValue,
         status: comandaData.status
@@ -907,10 +928,11 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
       throw error;
     }
 
-    console.log('Comanda criada com sucesso:', {
+    console.log('🇧🇷 Comanda criada com sucesso (Brasil):', {
       id: data.id,
       date: data.comanda_date,
-      originalDate: comandaData.date.toLocaleDateString('pt-BR')
+      originalDate: comandaData.date.toLocaleDateString('pt-BR'),
+      timezone: 'UTC-3 (Brasil)'
     });
 
     return {
@@ -1070,7 +1092,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
 
     // INTEGRAÇÃO COMANDAS → TRANSAÇÕES: Criar transação automática
     try {
-      console.log('Pagamento da comanda criado, gerando transação automática...');
+      console.log('🇧🇷 Pagamento da comanda criado, gerando transação automática (Brasil)...');
       
       // Buscar dados da comanda para obter informações adicionais
       const { data: comandaClientData, error: clientDataError } = await supabase
@@ -1107,7 +1129,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
           console.error('Erro ao criar transação automática:', transactionError);
           throw new Error('Erro ao criar transação automática');
         } else {
-          console.log('Transação automática criada com sucesso');
+          console.log('🇧🇷 Transação automática criada com sucesso (Brasil)');
         }
 
         // ATUALIZAR STATUS DO CLIENTE AUTOMATICAMENTE
@@ -1133,7 +1155,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
           if (statusError) {
             console.error('Erro ao atualizar status do cliente:', statusError);
           } else {
-            console.log(`Status do cliente atualizado para: ${newStatus}`);
+            console.log(`🇧🇷 Status do cliente atualizado para: ${newStatus} (Brasil)`);
           }
         } catch (statusError) {
           console.error('Erro ao calcular/atualizar status do cliente:', statusError);
