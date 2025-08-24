@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useApp } from '@/contexts/app-context';
 import { useAuth } from '@/contexts/auth-context';
-import { Comanda, ComandaClient, ComandaPayment, Session, Client } from '@/lib/types';
+import { Comanda, ComandaClient, ComandaPayment, Session, Client, Transaction } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -41,6 +41,137 @@ import {
   Info
 } from 'lucide-react';
 
+// ✅ CORREÇÃO: Funções utilitárias movidas para fora do componente
+const getTodayDate = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+const isSameDate = (date1: Date, date2: Date) => {
+  try {
+    if (!date1 || !date2) return false;
+    
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    
+    return d1.getFullYear() === d2.getFullYear() && 
+           d1.getMonth() === d2.getMonth() && 
+           d1.getDate() === d2.getDate();
+  } catch (error) {
+    console.error('Erro ao comparar datas:', error);
+    return false;
+  }
+};
+
+const formatCurrency = (value: number) => {
+  if (typeof value !== 'number' || isNaN(value)) return 'R$ 0,00';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+// ✅ CORREÇÃO: Função para calcular total pago com verificações de segurança
+const calculateTotalPaid = (client: ComandaClient) => {
+  try {
+    if (!client?.payments || !Array.isArray(client.payments)) {
+      return 0;
+    }
+    
+    return client.payments.reduce((sum, payment) => {
+      if (!payment || typeof payment.netValue !== 'number' || isNaN(payment.netValue)) {
+        return sum;
+      }
+      return sum + payment.netValue;
+    }, 0);
+  } catch (error) {
+    console.error('Erro ao calcular total pago:', error);
+    return 0;
+  }
+};
+
+// ✅ CORREÇÃO: Função para verificar se cliente está totalmente pago
+const isClientFullyPaid = (client: ComandaClient) => {
+  try {
+    if (!client || typeof client.value !== 'number') return false;
+    
+    const totalPaid = calculateTotalPaid(client);
+    const tolerance = 0.01; // Tolerância para diferenças de centavos
+    return Math.abs(totalPaid - client.value) < tolerance;
+  } catch (error) {
+    console.error('Erro ao verificar se cliente está pago:', error);
+    return false;
+  }
+};
+
+// ✅ CORREÇÃO: Função para buscar sinal pago
+const getSignalPaidForSession = (sessionId: string, transactions: Transaction[]) => {
+  try {
+    if (!sessionId || !Array.isArray(transactions)) return 0;
+    
+    const signalTransactions = transactions.filter(transaction => 
+      transaction?.sessionId === sessionId && 
+      transaction?.category === 'Sinal' &&
+      transaction?.type === 'receita'
+    );
+    
+    return signalTransactions.reduce((sum, transaction) => {
+      if (typeof transaction.value === 'number' && !isNaN(transaction.value)) {
+        return sum + transaction.value;
+      }
+      return sum;
+    }, 0);
+  } catch (error) {
+    console.error('Erro ao buscar sinal pago:', error);
+    return 0;
+  }
+};
+
+// ✅ CORREÇÃO: Função para buscar sessões agendadas
+const getScheduledSessionsForDate = (date: Date, sessions: Session[]) => {
+  try {
+    if (!date || !Array.isArray(sessions)) return [];
+    
+    return sessions.filter(session => {
+      if (!session?.date) return false;
+      return isSameDate(new Date(session.date), date);
+    });
+  } catch (error) {
+    console.error('Erro ao buscar sessões agendadas:', error);
+    return [];
+  }
+};
+
+// ✅ CORREÇÃO: Função para converter sessão em cliente da comanda
+const convertSessionToComandaClient = (session: Session, clients: Client[]): ComandaClient => {
+  try {
+    const client = clients.find(c => c.id === session.clientId);
+    const clientName = client?.name || 'Cliente não encontrado';
+    
+    return {
+      id: `session-${session.id}`,
+      comandaId: '',
+      clientId: session.clientId,
+      clientName: clientName,
+      sessionId: session.id,
+      description: session.description || 'Sem descrição',
+      value: session.totalValue || session.value || 0,
+      status: 'pendente',
+      payments: [],
+      createdAt: new Date()
+    };
+  } catch (error) {
+    console.error('Erro ao converter sessão:', error);
+    return {
+      id: `session-${session.id}`,
+      comandaId: '',
+      clientName: 'Erro ao carregar cliente',
+      description: 'Erro ao carregar descrição',
+      value: 0,
+      status: 'pendente',
+      payments: [],
+      createdAt: new Date()
+    };
+  }
+};
+
 interface PaymentFormProps {
   comandaClient: ComandaClient;
   onSave: (payment: Omit<ComandaPayment, 'id' | 'createdAt'>) => Promise<void>;
@@ -56,22 +187,21 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
   const { taxSettings } = useApp();
   const [saving, setSaving] = useState(false);
   
-  // ✅ CORREÇÃO: Calcular valor restante corretamente
-  const calculateRemainingValue = () => {
-    const totalPaid = calculateTotalPaid(comandaClient);
-    const signalPaid = sessionInfo?.signalPaid || 0;
-    const totalValue = comandaClient.value;
-    
-    // Se há informação de sessão, usar o valor restante da sessão
-    if (sessionInfo) {
-      return sessionInfo.remainingValue;
+  // ✅ CORREÇÃO: Calcular valor restante de forma segura
+  const remainingValue = useMemo(() => {
+    try {
+      if (sessionInfo) {
+        return sessionInfo.remainingValue || 0;
+      }
+      
+      const totalPaid = calculateTotalPaid(comandaClient);
+      const totalValue = comandaClient?.value || 0;
+      return Math.max(0, totalValue - totalPaid);
+    } catch (error) {
+      console.error('Erro ao calcular valor restante:', error);
+      return 0;
     }
-    
-    // Senão, calcular baseado no valor total menos o que já foi pago
-    return totalValue - totalPaid;
-  };
-
-  const remainingValue = calculateRemainingValue();
+  }, [comandaClient, sessionInfo]);
   
   const [payments, setPayments] = useState<Array<{
     method: ComandaPayment['method'];
@@ -85,26 +215,8 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
     feesPaidByClient: false
   }]);
 
-  // Função para calcular total pago de um cliente
-  const calculateTotalPaid = (client: ComandaClient) => {
-    try {
-      if (!client || !client.payments || !Array.isArray(client.payments)) {
-        return 0;
-      }
-      return client.payments.reduce((sum, payment) => {
-        if (!payment || typeof payment.netValue !== 'number') {
-          return sum;
-        }
-        return sum + payment.netValue;
-      }, 0);
-    } catch (error) {
-      console.error('Erro ao calcular total pago:', error);
-      return 0;
-    }
-  };
-
   // Função para obter taxa configurada
-  const getCardRate = (method: string, installments?: number) => {
+  const getCardRate = useCallback((method: string, installments?: number) => {
     if (!taxSettings) {
       const defaultRates = {
         'credito-vista': 3.5,
@@ -117,90 +229,95 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
 
     switch (method) {
       case 'credito-vista':
-        return taxSettings.creditCardCashRate;
+        return taxSettings.creditCardCashRate || 3.5;
       case 'credito-parcelado':
         if (installments === 2) {
-          return taxSettings.installmentRates?.twoInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.twoInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 3) {
-          return taxSettings.installmentRates?.threeInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.threeInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 4) {
-          return taxSettings.installmentRates?.fourInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.fourInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 5) {
-          return taxSettings.installmentRates?.fiveInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.fiveInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 6) {
-          return taxSettings.installmentRates?.sixInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.sixInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 7) {
-          return taxSettings.installmentRates?.sevenInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.sevenInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 8) {
-          return taxSettings.installmentRates?.eightInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.eightInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 9) {
-          return taxSettings.installmentRates?.nineInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.nineInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 10) {
-          return taxSettings.installmentRates?.tenInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.tenInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 11) {
-          return taxSettings.installmentRates?.elevenInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.elevenInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         } else if (installments === 12) {
-          return taxSettings.installmentRates?.twelveInstallments || taxSettings.creditCardInstallmentRate;
+          return taxSettings.installmentRates?.twelveInstallments || taxSettings.creditCardInstallmentRate || 4.5;
         }
-        return taxSettings.creditCardInstallmentRate;
+        return taxSettings.creditCardInstallmentRate || 4.5;
       case 'debito':
-        return taxSettings.debitCardRate;
+        return taxSettings.debitCardRate || 2.5;
       case 'pix':
-        return taxSettings.pixRate;
+        return taxSettings.pixRate || 0;
       default:
         return 0;
     }
-  };
+  }, [taxSettings]);
 
   // Calcular valores para um pagamento específico
-  const calculatePaymentValues = (payment: typeof payments[0]) => {
-    const value = parseFloat(payment.value.replace(',', '.'));
-    if (isNaN(value) || value <= 0) return { grossValue: 0, netValue: 0, fees: 0 };
+  const calculatePaymentValues = useCallback((payment: typeof payments[0]) => {
+    try {
+      const value = parseFloat(payment.value.replace(',', '.'));
+      if (isNaN(value) || value <= 0) return { grossValue: 0, netValue: 0, fees: 0 };
 
-    let rate = 0;
-    if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(payment.method)) {
-      rate = getCardRate(payment.method, payment.installments);
+      let rate = 0;
+      if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(payment.method)) {
+        rate = getCardRate(payment.method, payment.installments);
+      }
+
+      let grossValue: number;
+      let netValue: number;
+      let fees: number;
+
+      if (payment.feesPaidByClient) {
+        // Cliente paga as taxas: valor informado é líquido, calcular bruto
+        netValue = value;
+        fees = (value * rate) / (100 - rate);
+        grossValue = netValue + fees;
+      } else {
+        // Estabelecimento paga as taxas: valor informado é bruto, calcular líquido
+        grossValue = value;
+        fees = (grossValue * rate) / 100;
+        netValue = grossValue - fees;
+      }
+
+      return { grossValue, netValue, fees };
+    } catch (error) {
+      console.error('Erro ao calcular valores do pagamento:', error);
+      return { grossValue: 0, netValue: 0, fees: 0 };
     }
+  }, [getCardRate]);
 
-    let grossValue: number;
-    let netValue: number;
-    let fees: number;
-
-    if (payment.feesPaidByClient) {
-      // Cliente paga as taxas: valor informado é líquido, calcular bruto
-      netValue = value;
-      fees = (value * rate) / (100 - rate);
-      grossValue = netValue + fees;
-    } else {
-      // Estabelecimento paga as taxas: valor informado é bruto, calcular líquido
-      grossValue = value;
-      fees = (grossValue * rate) / 100;
-      netValue = grossValue - fees;
-    }
-
-    return { grossValue, netValue, fees };
-  };
-
-  const addPaymentMethod = () => {
+  const addPaymentMethod = useCallback(() => {
     setPayments(prev => [...prev, {
       method: 'dinheiro',
       value: '',
       installments: 1,
       feesPaidByClient: false
     }]);
-  };
+  }, []);
 
-  const removePaymentMethod = (index: number) => {
+  const removePaymentMethod = useCallback((index: number) => {
     if (payments.length > 1) {
       setPayments(prev => prev.filter((_, i) => i !== index));
     }
-  };
+  }, [payments.length]);
 
-  const updatePayment = (index: number, updates: Partial<typeof payments[0]>) => {
+  const updatePayment = useCallback((index: number, updates: Partial<typeof payments[0]>) => {
     setPayments(prev => prev.map((payment, i) => 
       i === index ? { ...payment, ...updates } : payment
     ));
-  };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,17 +367,21 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
     { value: 'credito-parcelado', label: 'Cartão de Crédito Parcelado', icon: CreditCard }
   ];
 
+  if (!comandaClient) {
+    return <div>Erro: Cliente não encontrado</div>;
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="p-4 bg-muted rounded-lg">
-        <h4 className="font-medium mb-2">{comandaClient.clientName}</h4>
-        <p className="text-sm text-muted-foreground">{comandaClient.description}</p>
+        <h4 className="font-medium mb-2">{comandaClient.clientName || 'Cliente sem nome'}</h4>
+        <p className="text-sm text-muted-foreground">{comandaClient.description || 'Sem descrição'}</p>
         <p className="text-lg font-bold mt-2">
-          {comandaClient.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          {formatCurrency(comandaClient.value || 0)}
         </p>
       </div>
 
-      {/* ✅ INFORMAÇÕES DE PAGAMENTO CONSOLIDADAS */}
+      {/* Informações de Pagamento */}
       <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
         <div className="flex items-center gap-2 mb-3">
           <Info className="h-4 w-4 text-blue-600" />
@@ -270,21 +391,21 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
           <div>
             <label className="text-blue-700 dark:text-blue-300">Valor Total</label>
             <p className="font-bold text-blue-800 dark:text-blue-200">
-              {comandaClient.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {formatCurrency(comandaClient.value || 0)}
             </p>
           </div>
           {sessionInfo && sessionInfo.signalPaid > 0 && (
             <div>
               <label className="text-green-700 dark:text-green-300">Sinal Já Pago</label>
               <p className="font-bold text-green-800 dark:text-green-200">
-                {sessionInfo.signalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {formatCurrency(sessionInfo.signalPaid)}
               </p>
             </div>
           )}
           <div>
             <label className="text-orange-700 dark:text-orange-300">Valor a Pagar</label>
             <p className="font-bold text-orange-800 dark:text-orange-200">
-              {remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {formatCurrency(remainingValue)}
             </p>
           </div>
         </div>
@@ -391,7 +512,7 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
 
                 <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Valor líquido: {calculatePaymentValues(payment).netValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    Valor líquido: {formatCurrency(calculatePaymentValues(payment).netValue)}
                   </p>
                 </div>
               </div>
@@ -576,7 +697,7 @@ export function ComandaView() {
     remainingValue: number;
     totalValue: number;
   } | undefined>(undefined);
-  const [newComandaValue, setNewComandaValue] = useState('');
+  const [newComandaValue, set NewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [closingComanda, setClosingComanda] = useState<string | null>(null);
   
@@ -584,115 +705,14 @@ export function ComandaView() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  const getTodayDate = () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return today;
-  };
-
-  const isSameDate = (date1: Date, date2: Date) => {
+  // ✅ CORREÇÃO: Funções memoizadas para evitar re-renders
+  const getCombinedClientsForDate = useCallback((comanda: Comanda) => {
     try {
-      const d1 = new Date(date1);
-      const d2 = new Date(date2);
-      
-      const d1Year = d1.getFullYear();
-      const d1Month = d1.getMonth();
-      const d1Day = d1.getDate();
-      
-      const d2Year = d2.getFullYear();
-      const d2Month = d2.getMonth();
-      const d2Day = d2.getDate();
-      
-      return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
-    } catch (error) {
-      console.error('Erro ao comparar datas:', error);
-      return false;
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
-  // ✅ CORREÇÃO: Função para calcular total pago corretamente
-  const calculateTotalPaid = (client: ComandaClient) => {
-    try {
-      if (!client || !client.payments || !Array.isArray(client.payments)) {
-        return 0;
-      }
-      return client.payments.reduce((sum, payment) => {
-        if (!payment || typeof payment.netValue !== 'number') {
-          return sum;
-        }
-        return sum + payment.netValue;
-      }, 0);
-    } catch (error) {
-      console.error('Erro ao calcular total pago:', error);
-      return 0;
-    }
-  };
-
-  // ✅ CORREÇÃO: Função para verificar se cliente está totalmente pago
-  const isClientFullyPaid = (client: ComandaClient) => {
-    const totalPaid = calculateTotalPaid(client);
-    const tolerance = 0.01; // Tolerância para diferenças de centavos
-    return Math.abs(totalPaid - client.value) < tolerance;
-  };
-
-  const getSignalPaidForSession = (sessionId: string) => {
-    try {
-      const signalTransactions = transactions.filter(transaction => 
-        transaction.sessionId === sessionId && 
-        transaction.category === 'Sinal' &&
-        transaction.type === 'receita'
-      );
-      
-      return signalTransactions.reduce((sum, transaction) => sum + transaction.value, 0);
-    } catch (error) {
-      console.error('Erro ao buscar sinal pago:', error);
-      return 0;
-    }
-  };
-
-  const getScheduledSessionsForDate = (date: Date) => {
-    try {
-      return sessions.filter(session => {
-        if (!session || !session.date) return false;
-        return isSameDate(new Date(session.date), date);
-      });
-    } catch (error) {
-      console.error('Erro ao buscar sessões agendadas:', error);
-      return [];
-    }
-  };
-
-  const convertSessionToComandaClient = (session: Session): ComandaClient => {
-    const client = clients.find(c => c.id === session.clientId);
-    const clientName = client?.name || 'Cliente não encontrado';
-    
-    return {
-      id: `session-${session.id}`,
-      comandaId: '',
-      clientId: session.clientId,
-      clientName: clientName,
-      sessionId: session.id,
-      description: session.description,
-      value: session.totalValue || session.value,
-      status: 'pendente',
-      payments: [],
-      createdAt: new Date()
-    };
-  };
-
-  const getCombinedClientsForDate = (comanda: Comanda) => {
-    try {
-      if (!comanda || !comanda.date) {
-        return [];
-      }
+      if (!comanda?.date) return [];
 
       const comandaClients = comanda.clients || [];
-      const scheduledSessions = getScheduledSessionsForDate(comanda.date);
-      const sessionClients = scheduledSessions.map(session => convertSessionToComandaClient(session));
+      const scheduledSessions = getScheduledSessionsForDate(comanda.date, sessions);
+      const sessionClients = scheduledSessions.map(session => convertSessionToComandaClient(session, clients));
       
       const filteredSessionClients = sessionClients.filter(sessionClient => {
         return !comandaClients.some(comandaClient => 
@@ -705,9 +725,9 @@ export function ComandaView() {
       console.error('Erro ao combinar clientes:', error);
       return comanda.clients || [];
     }
-  };
+  }, [sessions, clients]);
 
-  const calculateClientTotals = (combinedClients: ComandaClient[]) => {
+  const calculateClientTotals = useCallback((combinedClients: ComandaClient[]) => {
     try {
       const totalClients = combinedClients.reduce((sum, client) => {
         if (!client || typeof client.value !== 'number') return sum;
@@ -724,22 +744,17 @@ export function ComandaView() {
       console.error('Erro ao calcular totais:', error);
       return { totalClients: 0, totalPaid: 0, totalPendente: 0 };
     }
-  };
+  }, []);
 
   const filterComandsByDate = useMemo(() => {
     return (comandas: Comanda[]) => {
       try {
-        if (!comandas || !Array.isArray(comandas)) {
-          return [];
-        }
-
+        if (!comandas || !Array.isArray(comandas)) return [];
         if (!selectedDate) return comandas;
         
         return comandas.filter(comanda => {
           try {
-            if (!comanda || !comanda.date) {
-              return false;
-            }
+            if (!comanda?.date) return false;
             return isSameDate(new Date(comanda.date), selectedDate);
           } catch (error) {
             console.error('Erro ao filtrar comanda por data:', error);
@@ -859,7 +874,7 @@ export function ComandaView() {
         if (existingClient) {
           let sessionInfo = undefined;
           if (client.sessionId) {
-            const signalPaid = getSignalPaidForSession(client.sessionId);
+            const signalPaid = getSignalPaidForSession(client.sessionId, transactions);
             const totalValue = client.value;
             const remainingValue = totalValue - signalPaid;
             
@@ -893,7 +908,7 @@ export function ComandaView() {
         
         let sessionInfo = undefined;
         if (client.sessionId) {
-          const signalPaid = getSignalPaidForSession(client.sessionId);
+          const signalPaid = getSignalPaidForSession(client.sessionId, transactions);
           const totalValue = client.value;
           const remainingValue = totalValue - signalPaid;
           
@@ -947,14 +962,6 @@ export function ComandaView() {
   }, [filteredComandas]);
 
   const todayDate = getTodayDate();
-
-  const todayComanda = useMemo(() => {
-    const today = getTodayDate();
-    return comandas.find(comanda => {
-      if (!comanda || !comanda.date) return false;
-      return isSameDate(new Date(comanda.date), today);
-    });
-  }, [comandas]);
 
   return (
     <div className="space-y-6">
@@ -1074,7 +1081,7 @@ export function ComandaView() {
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
-              if (!comanda || !comanda.id) return null;
+              if (!comanda?.id) return null;
 
               const combinedClients = getCombinedClientsForDate(comanda);
               const { totalClients, totalPaid, totalPendente } = calculateClientTotals(combinedClients);
@@ -1165,12 +1172,12 @@ export function ComandaView() {
 
                     <div className="space-y-3">
                       {combinedClients.map((client) => {
-                        if (!client || !client.id) return null;
+                        if (!client?.id) return null;
 
                         const clientTotalPaid = calculateTotalPaid(client);
                         const hasMultiplePayments = client.payments && client.payments.length > 1;
                         const isFromSession = client.id.startsWith('session-');
-                        const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId) : 0;
+                        const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId, transactions) : 0;
                         
                         // ✅ CORREÇÃO: Verificar se está totalmente pago
                         const isFullyPaid = isClientFullyPaid(client);
@@ -1289,7 +1296,7 @@ export function ComandaView() {
           
           <div className="grid gap-4">
             {closedComandas.slice(0, 10).map((comanda) => {
-              if (!comanda || !comanda.id) return null;
+              if (!comanda?.id) return null;
 
               const combinedClients = getCombinedClientsForDate(comanda);
               const { totalClients, totalPaid } = calculateClientTotals(combinedClients);
