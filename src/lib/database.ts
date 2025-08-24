@@ -1195,6 +1195,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
   }
 }
 
+// ✅ CORREÇÃO: Função updateComandaStatus com subquery corrigida
 export async function updateComandaStatus(comandaId: string, status: 'aberta' | 'fechada'): Promise<void> {
   try {
     console.log('🔥 DATABASE: Atualizando status da comanda:', { comandaId, status });
@@ -1207,19 +1208,35 @@ export async function updateComandaStatus(comandaId: string, status: 'aberta' | 
     
     // Se estiver fechando a comanda, calcular valor de fechamento
     if (status === 'fechada') {
-      // Buscar total líquido dos pagamentos
-      const { data: paymentsData } = await supabase
+      // ✅ CORREÇÃO: Primeiro buscar os IDs dos clientes da comanda
+      const { data: clientIds, error: clientIdsError } = await supabase
+        .from('comanda_clients')
+        .select('id')
+        .eq('comanda_id', comandaId);
+
+      if (clientIdsError) {
+        console.error('❌ DATABASE: Erro ao buscar IDs dos clientes:', clientIdsError);
+        throw clientIdsError;
+      }
+
+      // Extrair apenas os IDs em um array
+      const clientIdArray = (clientIds || []).map(client => client.id);
+
+      // Agora buscar os pagamentos usando o array de IDs
+      const { data: paymentsData, error: paymentsError } = await supabase
         .from('comanda_payments')
         .select('net_value')
-        .in('comanda_client_id', 
-          supabase
-            .from('comanda_clients')
-            .select('id')
-            .eq('comanda_id', comandaId)
-        );
+        .in('comanda_client_id', clientIdArray);
+
+      if (paymentsError) {
+        console.error('❌ DATABASE: Erro ao buscar pagamentos:', paymentsError);
+        throw paymentsError;
+      }
 
       const totalNetValue = (paymentsData || []).reduce((sum, payment) => sum + (payment.net_value || 0), 0);
       updateData.closing_value = totalNetValue;
+
+      console.log('💰 DATABASE: Valor de fechamento calculado:', totalNetValue);
     }
 
     const { error } = await supabase
@@ -1237,4 +1254,38 @@ export async function updateComandaStatus(comandaId: string, status: 'aberta' | 
     console.error('❌ DATABASE: Erro ao atualizar status da comanda:', error);
     throw error;
   }
+}
+
+// ✅ NOVA: Função para reabrir comanda
+export async function reopenComanda(comandaId: string): Promise<void> {
+  try {
+    console.log('🔥 DATABASE: Reabrindo comanda:', comandaId);
+
+    if (!comandaId) {
+      throw new Error('ID da comanda é obrigatório');
+    }
+
+    const { error } = await supabase
+      .from('comandas')
+      .update({ 
+        status: 'aberta',
+        closing_value: null // Limpar valor de fechamento
+      })
+      .eq('id', comandaId);
+
+    if (error) {
+      console.error('❌ DATABASE: Erro ao reabrir comanda:', error);
+      throw error;
+    }
+
+    console.log('✅ DATABASE: Comanda reaberta com sucesso');
+  } catch (error) {
+    console.error('❌ DATABASE: Erro ao reabrir comanda:', error);
+    throw error;
+  }
+}
+
+// ✅ NOVA: Função para fechar comanda (alias para updateComandaStatus)
+export async function closeComanda(comandaId: string): Promise<void> {
+  return updateComandaStatus(comandaId, 'fechada');
 }
