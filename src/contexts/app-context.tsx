@@ -262,8 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...comanda,
         clients: comanda.clients.map(client => {
           if (client.id === paymentData.comandaClientId) {
-            const currentPayments = client.payments || [];
-            const updatedPayments = [...currentPayments, newPayment];
+            const updatedPayments = [...client.payments, newPayment];
             
             // Verificar se o valor total dos pagamentos cobre o valor do serviço
             const totalPaid = updatedPayments.reduce((sum, p) => sum + p.netValue, 0);
@@ -272,7 +271,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return {
               ...client,
               payments: updatedPayments,
-              payment: newPayment, // Manter compatibilidade
               status: isFullyPaid ? 'finalizado' as const : 'pendente' as const
             };
           }
