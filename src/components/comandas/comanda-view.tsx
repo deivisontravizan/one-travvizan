@@ -697,12 +697,13 @@ export function ComandaView() {
     remainingValue: number;
     totalValue: number;
   } | undefined>(undefined);
-  const [newComandaValue, set NewComandaValue] = useState('');
+  const [newComandaValue, setNewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [closingComanda, setClosingComanda] = useState<string | null>(null);
   
   // Estados para filtro de data
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // ✅ CORREÇÃO: Funções memoizadas para evitar re-renders
