@@ -686,7 +686,7 @@ export function ComandaView() {
     
     return {
       id: `session-${session.id}`, // ID temporário para identificar que vem da sessão
-      comandaId: '', // Será preench ido quando necessário
+      comandaId: '', // Será preenchido quando necessário
       clientId: session.clientId,
       clientName: clientName,
       sessionId: session.id,
@@ -1413,6 +1413,7 @@ export function ComandaView() {
             })}
           </div>
         </div>
+      
       )}
 
       {/* Dialog para adicionar cliente */}
@@ -1433,7 +1434,7 @@ export function ComandaView() {
       </Dialog>
 
       {/* Dialog para registrar pagamento */}
-      <Dialog open={isPaymentFormOpen} onOpenChange={set IsPaymentFormOpen}>
+      <Dialog open={isPaymentFormOpen} onOpenChange={setIsPaymentFormOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
