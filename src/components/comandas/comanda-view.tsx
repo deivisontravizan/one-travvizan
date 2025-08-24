@@ -1400,7 +1400,7 @@ export function ComandaView() {
                         </Badge>
                       </div>
                     </div>
-                  </Car dContent>
+                  </CardContent>
                 </Card>
               );
             })}
@@ -1422,6 +1422,7 @@ export function ComandaView() {
               setSelectedComanda('');
             }}
           />
+        
         </DialogContent>
       </Dialog>
 
