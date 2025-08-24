@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useApp } from '@/contexts/app-context';
 import { useAuth } from '@/contexts/auth-context';
-import { Comanda, ComandaClient, ComandaPayment } from '@/lib/types';
+import { Comanda, ComandaClient, ComandaPayment, Session, Client } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -35,7 +35,9 @@ import {
   Lock,
   CalendarIcon,
   X,
-  Filter
+  Filter,
+  Users,
+  UserCheck
 } from 'lucide-react';
 
 interface PaymentFormProps {
@@ -521,7 +523,7 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 }
 
 export function ComandaView() {
-  const { comandas, sessions, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
+  const { comandas, sessions, clients, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
   const { user } = useAuth();
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
@@ -604,15 +606,87 @@ export function ComandaView() {
     }
   };
 
-  // Função para calcular totais de clientes
-  const calculateClientTotals = (filteredClients: ComandaClient[]) => {
+  // ✅ NOVA FUNCIONALIDADE: Buscar sessões agendadas para uma data específica
+  const getScheduledSessionsForDate = (date: Date) => {
     try {
-      const totalClients = filteredClients.reduce((sum, client) => {
+      return sessions.filter(session => {
+        if (!session || !session.date) return false;
+        return isSameDate(new Date(session.date), date);
+      });
+    } catch (error) {
+      console.error('Erro ao buscar sessões agendadas:', error);
+      return [];
+    }
+  };
+
+  // ✅ NOVA FUNCIONALIDADE: Converter sessão agendada em formato de cliente da comanda
+  const convertSessionToComandaClient = (session: Session): ComandaClient => {
+    const client = clients.find(c => c.id === session.clientId);
+    const clientName = client?.name || 'Cliente não encontrado';
+    
+    return {
+      id: `session-${session.id}`, // ID temporário para identificar que vem da sessão
+      comandaId: '', // Será preenchido quando necessário
+      clientId: session.clientId,
+      clientName: clientName,
+      sessionId: session.id,
+      description: session.description,
+      value: session.totalValue || session.value,
+      status: 'pendente',
+      payments: [],
+      createdAt: new Date()
+    };
+  };
+
+  // ✅ FUNCIONALIDADE PRINCIPAL: Combinar clientes da comanda + sessões agendadas
+  const getCombinedClientsForDate = (comanda: Comanda) => {
+    try {
+      if (!comanda || !comanda.date) {
+        return [];
+      }
+
+      // 1. Clientes já adicionados à comanda (funcionalidade existente)
+      const comandaClients = comanda.clients || [];
+
+      // 2. Sessões agendadas para o dia da comanda
+      const scheduledSessions = getScheduledSessionsForDate(comanda.date);
+      
+      // 3. Converter sessões em formato de cliente da comanda
+      const sessionClients = scheduledSessions.map(session => convertSessionToComandaClient(session));
+      
+      // 4. Filtrar sessões que já estão na comanda (evitar duplicatas)
+      const filteredSessionClients = sessionClients.filter(sessionClient => {
+        return !comandaClients.some(comandaClient => 
+          comandaClient.sessionId === sessionClient.sessionId
+        );
+      });
+
+      console.log('Clientes combinados:', {
+        comandaDate: comanda.date.toLocaleDateString('pt-BR'),
+        comandaClients: comandaClients.length,
+        scheduledSessions: scheduledSessions.length,
+        sessionClients: sessionClients.length,
+        filteredSessionClients: filteredSessionClients.length,
+        total: comandaClients.length + filteredSessionClients.length
+      });
+
+      // 5. Combinar ambos os tipos
+      return [...comandaClients, ...filteredSessionClients];
+    } catch (error) {
+      console.error('Erro ao combinar clientes:', error);
+      return comanda.clients || [];
+    }
+  };
+
+  // Função para calcular totais de clientes (modificada para usar clientes combinados)
+  const calculateClientTotals = (combinedClients: ComandaClient[]) => {
+    try {
+      const totalClients = combinedClients.reduce((sum, client) => {
         if (!client || typeof client.value !== 'number') return sum;
         return sum + client.value;
       }, 0);
 
-      const totalPaid = filteredClients.reduce((sum, client) => {
+      const totalPaid = combinedClients.reduce((sum, client) => {
         if (!client) return sum;
         return sum + calculateTotalPaid(client);
       }, 0);
@@ -623,63 +697,6 @@ export function ComandaView() {
       return { totalClients: 0, totalPaid: 0, totalPendente: 0 };
     }
   };
-
-  // CORREÇÃO CRÍTICA: Função para filtrar clientes da comanda por data da sessão
-  const getClientsForComandaDate = useMemo(() => {
-    return (comanda: Comanda) => {
-      try {
-        if (!comanda || !comanda.date || !comanda.clients || !Array.isArray(comanda.clients)) {
-          console.log('Comanda inválida ou sem clientes:', comanda?.id);
-          return [];
-        }
-
-        console.log(`Filtrando clientes para comanda ${comanda.id}:`, {
-          comandaDate: comanda.date.toLocaleDateString('pt-BR'),
-          totalClients: comanda.clients.length,
-          totalSessions: sessions.length
-        });
-        
-        const filteredClients = comanda.clients.filter(client => {
-          try {
-            // Se não tem sessionId, incluir o cliente (cliente avulso)
-            if (!client.sessionId) {
-              console.log(`Cliente ${client.clientName} incluído (sem sessão)`);
-              return true;
-            }
-            
-            // Buscar a sessão correspondente
-            const session = sessions.find(s => s && s.id === client.sessionId);
-            if (!session || !session.date) {
-              console.log(`Sessão não encontrada para cliente ${client.clientName}, incluindo por segurança`);
-              return true;
-            }
-            
-            // CORREÇÃO: Comparar datas de forma mais robusta
-            const sessionDate = new Date(session.date);
-            const comandaDate = new Date(comanda.date);
-            const isSame = isSameDate(sessionDate, comandaDate);
-            
-            console.log(`Cliente ${client.clientName}:`, {
-              sessionDate: sessionDate.toLocaleDateString('pt-BR'),
-              comandaDate: comandaDate.toLocaleDateString('pt-BR'),
-              incluir: isSame
-            });
-            
-            return isSame;
-          } catch (error) {
-            console.error('Erro ao filtrar cliente:', error);
-            return true; // Em caso de erro, incluir o cliente
-          }
-        });
-
-        console.log(`Resultado: ${filteredClients.length} clientes filtrados para comanda ${comanda.id}`);
-        return filteredClients;
-      } catch (error) {
-        console.error('Erro ao filtrar clientes da comanda:', error);
-        return [];
-      }
-    };
-  }, [sessions]);
 
   // Filtro de data
   const filterComandsByDate = useMemo(() => {
@@ -965,8 +982,9 @@ export function ComandaView() {
             {openComandas.map((comanda) => {
               if (!comanda || !comanda.id) return null;
 
-              const filteredClients = getClientsForComandaDate(comanda);
-              const { totalClients, totalPaid, totalPendente } = calculateClientTotals(filteredClients);
+              // ✅ USAR NOVA FUNCIONALIDADE: Clientes combinados (comanda + sessões agendadas)
+              const combinedClients = getCombinedClientsForDate(comanda);
+              const { totalClients, totalPaid, totalPendente } = calculateClientTotals(combinedClients);
               
               return (
                 <Card key={comanda.id}>
@@ -1021,7 +1039,7 @@ export function ComandaView() {
                             Aberta
                           </Badge>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {filteredClients.length} clientes
+                            {combinedClients.length} clientes
                           </p>
                         </div>
                       </div>
@@ -1053,16 +1071,31 @@ export function ComandaView() {
                     </div>
 
                     <div className="space-y-3">
-                      {filteredClients.map((client) => {
+                      {combinedClients.map((client) => {
                         if (!client || !client.id) return null;
 
                         const clientTotalPaid = calculateTotalPaid(client);
                         const hasMultiplePayments = client.payments && client.payments.length > 1;
+                        const isFromSession = client.id.startsWith('session-'); // ✅ Identificar se vem da sessão
                         
                         return (
                           <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div>
-                              <p className="font-medium">{client.clientName || 'Cliente sem nome'}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{client.clientName || 'Cliente sem nome'}</p>
+                                {isFromSession && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Users className="h-3 w-3 mr-1" />
+                                    Agendado
+                                  </Badge>
+                                )}
+                                {!isFromSession && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <UserCheck className="h-3 w-3 mr-1" />
+                                    Na Comanda
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground">{client.description || 'Sem descrição'}</p>
                               {hasMultiplePayments && (
                                 <p className="text-xs text-blue-600">
@@ -1091,6 +1124,7 @@ export function ComandaView() {
                                     setSelectedClient(client);
                                     setIsPaymentFormOpen(true);
                                   }}
+                                  disabled={isFromSession} // ✅ Desabilitar para clientes da sessão até serem adicionados à comanda
                                 >
                                   <DollarSign className="h-3 w-3 mr-1" />
                                   {clientTotalPaid > 0 ? 'Completar' : 'Pagar'}
@@ -1156,8 +1190,8 @@ export function ComandaView() {
             {closedComandas.slice(0, 10).map((comanda) => {
               if (!comanda || !comanda.id) return null;
 
-              const filteredClients = getClientsForComandaDate(comanda);
-              const { totalClients, totalPaid } = calculateClientTotals(filteredClients);
+              const combinedClients = getCombinedClientsForDate(comanda);
+              const { totalClients, totalPaid } = calculateClientTotals(combinedClients);
               
               return (
                 <Card key={comanda.id} className="opacity-75">
@@ -1168,7 +1202,7 @@ export function ComandaView() {
                           Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {filteredClients.length} clientes • {formatCurrency(totalPaid)} líquido
+                          {combinedClients.length} clientes • {formatCurrency(totalPaid)} líquido
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
