@@ -530,7 +530,7 @@ export function ComandaView() {
   const [selectedClient, setSelectedClient] = useState<ComandaClient | null>(null);
   const [newComandaValue, setNewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
-  const [closingComanda, setClosingComanda] = useState<string | null>(null); // CORREÇÃO: Estado para controlar qual comanda está sendo fechada
+  const [closingComanda, setClosingComanda] = useState<string | null>(null);
   
   // Estados para filtro de data
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -539,7 +539,6 @@ export function ComandaView() {
   // CORREÇÃO: Função para obter data atual sem problemas de timezone
   const getCurrentDate = () => {
     const now = new Date();
-    // Criar data local sem problemas de timezone
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   };
 
@@ -547,25 +546,43 @@ export function ComandaView() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // CORREÇÃO: Função para calcular total pago com verificações de segurança
-  const calculateTotalPaid = useMemo(() => {
-    return (client: ComandaClient) => {
-      try {
-        if (!client || !client.payments || !Array.isArray(client.payments)) {
-          return 0;
-        }
-        return client.payments.reduce((sum, payment) => {
-          if (!payment || typeof payment.netValue !== 'number') {
-            return sum;
-          }
-          return sum + payment.netValue;
-        }, 0);
-      } catch (error) {
-        console.error('Erro ao calcular total pago:', error);
+  // CORREÇÃO: Função para calcular total pago com verificações de segurança (função normal, não hook)
+  const calculateTotalPaid = (client: ComandaClient) => {
+    try {
+      if (!client || !client.payments || !Array.isArray(client.payments)) {
         return 0;
       }
-    };
-  }, []);
+      return client.payments.reduce((sum, payment) => {
+        if (!payment || typeof payment.netValue !== 'number') {
+          return sum;
+        }
+        return sum + payment.netValue;
+      }, 0);
+    } catch (error) {
+      console.error('Erro ao calcular total pago:', error);
+      return 0;
+    }
+  };
+
+  // CORREÇÃO: Função para calcular totais de clientes (função normal, não hook)
+  const calculateClientTotals = (filteredClients: ComandaClient[]) => {
+    try {
+      const totalClients = filteredClients.reduce((sum, client) => {
+        if (!client || typeof client.value !== 'number') return sum;
+        return sum + client.value;
+      }, 0);
+
+      const totalPaid = filteredClients.reduce((sum, client) => {
+        if (!client) return sum;
+        return sum + calculateTotalPaid(client);
+      }, 0);
+
+      return { totalClients, totalPaid, totalPendente: totalClients - totalPaid };
+    } catch (error) {
+      console.error('Erro ao calcular totais:', error);
+      return { totalClients: 0, totalPaid: 0, totalPendente: 0 };
+    }
+  };
 
   // IMPLEMENTAÇÃO: Função para filtrar clientes da comanda por data da sessão com verificações de segurança
   const getClientsForComandaDate = useMemo(() => {
@@ -671,7 +688,7 @@ export function ComandaView() {
     try {
       await addComandaClient(clientData);
       setIsClientFormOpen(false);
-      setSelectedComanda(''); // Limpar seleção
+      setSelectedComanda('');
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
       throw error;
@@ -699,14 +716,13 @@ export function ComandaView() {
     }
   };
 
-  // CORREÇÃO: Melho tratamento de erro e estado de loading para fechar comanda
   const handleCloseComanda = async (comandaId: string) => {
     if (!comandaId) {
       toast.error('ID da comanda é inválido');
       return;
     }
 
-    setClosingComanda(comandaId); // Marcar qual comanda está sendo fechada
+    setClosingComanda(comandaId);
 
     try {
       await closeComanda(comandaId);
@@ -715,7 +731,7 @@ export function ComandaView() {
       console.error('Erro ao fechar comanda:', error);
       toast.error('Erro ao fechar comanda. Tente novamente.');
     } finally {
-      setClosingComanda(null); // Limpar estado de loading
+      setClosingComanda(null);
     }
   };
 
@@ -865,37 +881,13 @@ export function ComandaView() {
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
-              if (!comanda || !comanda.id) return null; // CORREÇÃO: Verificação de segurança
+              if (!comanda || !comanda.id) return null;
 
               // IMPLEMENTAÇÃO: Usar função para filtrar clientes por data da sessão
               const filteredClients = getClientsForComandaDate(comanda);
               
-              // CORREÇÃO: Memoizar cálculos para performance usando clientes filtrados com verificações de segurança
-              const totalClients = useMemo(() => {
-                try {
-                  return filteredClients.reduce((sum, client) => {
-                    if (!client || typeof client.value !== 'number') return sum;
-                    return sum + client.value;
-                  }, 0);
-                } catch (error) {
-                  console.error('Erro ao calcular total clientes:', error);
-                  return 0;
-                }
-              }, [filteredClients]);
-
-              const totalPaid = useMemo(() => {
-                try {
-                  return filteredClients.reduce((sum, client) => {
-                    if (!client) return sum;
-                    return sum + calculateTotalPaid(client);
-                  }, 0);
-                } catch (error) {
-                  console.error('Erro ao calcular total pago:', error);
-                  return 0;
-                }
-              }, [filteredClients, calculateTotalPaid]);
-
-              const totalPendente = totalClients - totalPaid;
+              // CORREÇÃO: Usar função normal para calcular totais (não useMemo dentro do map)
+              const { totalClients, totalPaid, totalPendente } = calculateClientTotals(filteredClients);
               
               return (
                 <Card key={comanda.id}>
@@ -911,13 +903,12 @@ export function ComandaView() {
                         </p>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        {/* CORREÇÃO: Adicionar confirmação antes de fechar comanda com estado de loading */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button 
                               variant="outline" 
                               size="sm"
-                              disabled={closingComanda === comanda.id} // Desabilitar se está fechando
+                              disabled={closingComanda === comanda.id}
                             >
                               {closingComanda === comanda.id ? (
                                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -983,9 +974,8 @@ export function ComandaView() {
                     </div>
 
                     <div className="space-y-3">
-                      {/* IMPLEMENTAÇÃO: Usar clientes filtrados por data da sessão */}
                       {filteredClients.map((client) => {
-                        if (!client || !client.id) return null; // CORREÇÃO: Verificação de segurança
+                        if (!client || !client.id) return null;
 
                         const clientTotalPaid = calculateTotalPaid(client);
                         const hasMultiplePayments = client.payments && client.payments.length > 1;
@@ -1085,18 +1075,10 @@ export function ComandaView() {
           
           <div className="grid gap-4">
             {closedComandas.slice(0, 10).map((comanda) => {
-              if (!comanda || !comanda.id) return null; // CORREÇÃO: Verificação de segurança
+              if (!comanda || !comanda.id) return null;
 
-              // IMPLEMENTAÇÃO: Aplicar filtro também nas comandas fechadas
               const filteredClients = getClientsForComandaDate(comanda);
-              const totalClients = filteredClients.reduce((sum, client) => {
-                if (!client || typeof client.value !== 'number') return sum;
-                return sum + client.value;
-              }, 0);
-              const totalPaid = filteredClients.reduce((sum, client) => {
-                if (!client) return sum;
-                return sum + calculateTotalPaid(client);
-              }, 0);
+              const { totalClients, totalPaid } = calculateClientTotals(filteredClients);
               
               return (
                 <Card key={comanda.id} className="opacity-75">
