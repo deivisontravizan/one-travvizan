@@ -691,7 +691,7 @@ export function ComandaView() {
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
         date: todayDate, // Usar data de hoje sem problemas de timezone
         tattooerId: user?.id || '',
-        openingValue: parseFloat(newCom andaValue.replace(',', '.')),
+        openingValue: parseFloat(newComandaValue.replace(',', '.')), // CORREÇÃO: Corrigir nome da variável
         status: 'aberta',
         clients: []
       };
