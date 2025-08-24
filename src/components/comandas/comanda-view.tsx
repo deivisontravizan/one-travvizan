@@ -415,7 +415,8 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
         clientName: formData.clientName,
         description: formData.description,
         value: parseFloat(formData.value.replace(',', '.')),
-        status: 'pendente'
+        status: 'pendente',
+        payments: [] // CORREÇÃO: Adicionar propriedade payments obrigatória
       };
 
       await onSave(client);
@@ -598,10 +599,7 @@ export function ComandaView() {
 
   // Função para calcular total pago considerando múltiplos pagamentos
   const calculateTotalPaid = (client: ComandaClient) => {
-    if (client.payments && client.payments.length > 0) {
-      return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
-    }
-    return client.payment?.netValue || 0;
+    return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
   };
 
   // Aplicar filtro de data
@@ -746,6 +744,7 @@ export function ComandaView() {
                           <Lock className="h-4 w-4 mr-1" />
                           Fechar
                         </Button>
+                
                         <div>
                           <Badge variant="outline" className="text-green-600 border-green-600">
                             Aberta
@@ -785,7 +784,7 @@ export function ComandaView() {
                     <div className="space-y-3">
                       {comanda.clients.map((client) => {
                         const clientTotalPaid = calculateTotalPaid(client);
-                        const hasMultiplePayments = client.payments && client.payments.length > 1;
+                        const hasMultiplePayments = client.payments.length > 1;
                         
                         return (
                           <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -794,7 +793,7 @@ export function ComandaView() {
                               <p className="text-sm text-muted-foreground">{client.description}</p>
                               {hasMultiplePayments && (
                                 <p className="text-xs text-blue-600">
-                                  {client.payments!.length} formas de pagamento
+                                  {client.payments.length} formas de pagamento
                                 </p>
                               )}
                             </div>

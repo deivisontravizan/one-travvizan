@@ -987,7 +987,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
       throw new Error('Valor líquido deve ser maior que zero');
     }
 
-    // Verificar ownership através do cliente da comanda
+    // CORREÇÃO: Verificar ownership através do cliente da comanda com tipagem correta
     const { data: ownershipCheck } = await supabase
       .from('comanda_clients')
       .select(`
@@ -998,7 +998,8 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
       .eq('id', paymentData.comandaClientId)
       .single();
 
-    if (!ownershipCheck || ownershipCheck.comandas.tattooerid !== user.id) {
+    // CORREÇÃO: Acessar tattooerid corretamente
+    if (!ownershipCheck || (ownershipCheck.comandas as any).tattooerid !== user.id) {
       throw new Error('Acesso negado: cliente da comanda não pertence ao usuário');
     }
 
