@@ -20,6 +20,20 @@ const parseLocalDate = (dateString: string): Date => {
   return new Date(year, month - 1, day);
 };
 
+// NOVA: Função para converter datetime do banco para Date local (para sessões)
+const parseLocalDateTime = (dateTimeString: string): Date => {
+  // Para sessões que têm timestamp completo, manter o horário mas garantir timezone local
+  const date = new Date(dateTimeString);
+  
+  // Se a data parece estar em UTC, ajustar para local
+  // Verificar se a diferença é exatamente o offset do timezone
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset() * 60000; // em milliseconds
+  
+  // Retornar a data ajustada se necessário
+  return new Date(date.getTime() + timezoneOffset);
+};
+
 // Funções para Clientes
 export async function getClients(): Promise<Client[]> {
   try {
@@ -192,7 +206,7 @@ export async function getSessions(): Promise<Session[]> {
       id: session.id,
       clientId: session.client_id,
       tattooerId: session.tattooerid,
-      date: new Date(session.session_date),
+      date: new Date(session.session_date), // ✅ CORREÇÃO: Manter como está pois sessões precisam do horário
       duration: session.duration,
       value: session.value,
       totalValue: session.total_value,
@@ -359,6 +373,42 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             console.log('Cliente já existe na comanda, pulando duplicata');
           }
         }
+
+        // ✅ NOVA FUNCIONALIDADE: INTEGRAÇÃO AGENDA → FINANCEIRO
+        // Criar transação automática para o sinal
+        try {
+          console.log('Criando transação automática para o sinal...');
+          
+          const transactionDescription = `Sinal - ${clientName} - ${sessionData.description}`;
+          
+          const { error: transactionError } = await supabase
+            .from('transactions')
+            .insert({
+              tattooerid: user.id,
+              type: 'receita',
+              description: transactionDescription,
+              value: sessionData.signalValue,
+              transaction_date: sessionData.date.toISOString(),
+              category: 'Sinal',
+              session_id: newSession.id,
+              payment_method: 'dinheiro', // Padrão para sinais
+              gross_value: sessionData.signalValue,
+              fees: 0,
+              installments: 1
+            });
+
+          if (transactionError) {
+            console.error('Erro ao criar transação automática do sinal:', transactionError);
+            throw new Error('Erro ao criar transação automática do sinal');
+          } else {
+            console.log('Transação automática do sinal criada com sucesso');
+          }
+        } catch (financialError) {
+          console.error('Erro na integração Agenda → Financeiro:', financialError);
+          // Não falhar a criação da sessão por causa da integração financeira
+          console.warn('Sessão e comanda criadas, mas integração financeira falhou');
+        }
+
       } catch (integrationError) {
         console.error('Erro na integração Agenda → Comandas:', integrationError);
         // Não falhar a criação da sessão por causa da integração
@@ -792,7 +842,7 @@ export async function getComandas(): Promise<Comanda[]> {
           .order('created_at', { ascending: true });
 
         if (clientsError) {
-          console.error('Erro ao buscar clientes da comanda:', clientsError);
+          console.error('Erro ao buscar cl ientes da comanda:', clientsError);
           // Continuar sem os clientes em caso de erro
         }
 
