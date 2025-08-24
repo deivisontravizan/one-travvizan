@@ -271,7 +271,16 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
 
         const clientName = clientData?.name || 'Cliente não encontrado';
         const sessionDate = new Date(sessionData.date);
-        const dateString = sessionDate.toISOString().split('T')[0];
+        
+        // CORREÇÃO: Usar formatação de data sem timezone
+        const formatDateForDatabase = (date: Date): string => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
+        const dateString = formatDateForDatabase(sessionDate);
 
         // Verificar se existe comanda aberta para o dia
         const { data: existingComanda } = await supabase
@@ -735,6 +744,15 @@ export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<
   }
 }
 
+// CORREÇÃO: Função para formatar data sem problemas de timezone
+const formatDateForDatabase = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+};
+
 // Funções para Comandas
 export async function getComandas(): Promise<Comanda[]> {
   try {
@@ -830,6 +848,7 @@ export async function getComandas(): Promise<Comanda[]> {
           tattooerId: comanda.tattooerid,
           openingValue: comanda.opening_value,
           closingValue: comanda.closing_value,
+          
           status: comanda.status,
           clients: clientsWithPayments,
           createdAt: new Date(comanda.created_at),
@@ -862,11 +881,20 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
       throw new Error('Valor de abertura não pode ser negativo');
     }
 
+    // CORREÇÃO DEFINITIVA: Usar formatação de data sem problemas de timezone
+    const dateForDB = formatDateForDatabase(comandaData.date);
+    
+    console.log('Criando comanda no banco:', {
+      originalDate: comandaData.date,
+      formattedDate: dateForDB,
+      dateString: comandaData.date.toLocaleDateString('pt-BR')
+    });
+
     const { data, error } = await supabase
       .from('comandas')
       .insert({
         tattooerid: user.id,
-        comanda_date: comandaData.date.toISOString().split('T')[0],
+        comanda_date: dateForDB, // CORREÇÃO: Usar formatação manual sem timezone
         opening_value: comandaData.openingValue,
         closing_value: comandaData.closingValue,
         status: comandaData.status
@@ -878,6 +906,12 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
       console.error('Erro ao criar comanda:', error);
       throw error;
     }
+
+    console.log('Comanda criada com sucesso:', {
+      id: data.id,
+      date: data.comanda_date,
+      originalDate: comandaData.date.toLocaleDateString('pt-BR')
+    });
 
     return {
       id: data.id,
