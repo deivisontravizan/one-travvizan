@@ -521,8 +521,8 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 }
 
 export function ComandaView() {
-  const { comandas, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
-  const { user } = useAuth(); // CORREÇÃO: Importar useAuth para pegar o usuário
+  const { comandas, sessions, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
+  const { user } = useAuth();
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -545,6 +545,30 @@ export function ComandaView() {
       return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
     };
   }, []);
+
+  // IMPLEMENTAÇÃO: Função para filtrar clientes da comanda por data da sessão
+  const getClientsForComandaDate = useMemo(() => {
+    return (comanda: Comanda) => {
+      const comandaDateString = new Date(comanda.date).toDateString();
+      
+      return comanda.clients.filter(client => {
+        // Se não tem sessionId, incluir o cliente (pode ser cliente avulso)
+        if (!client.sessionId) {
+          return true;
+        }
+        
+        // Buscar a sessão correspondente
+        const session = sessions.find(s => s.id === client.sessionId);
+        if (!session) {
+          return true; // Se não encontrar a sessão, incluir por segurança
+        }
+        
+        // Comparar as datas usando toDateString para evitar problemas de timezone
+        const sessionDateString = new Date(session.date).toDateString();
+        return sessionDateString === comandaDateString;
+      });
+    };
+  }, [sessions]);
 
   // CORREÇÃO: Filtro de data com comparação correta usando toDateString
   const filterComandsByDate = useMemo(() => {
@@ -573,7 +597,7 @@ export function ComandaView() {
     try {
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
         date: new Date(),
-        tattooerId: user?.id || '', // CORREÇÃO: Usar ID do usuário autenticado
+        tattooerId: user?.id || '',
         openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
         clients: []
@@ -749,14 +773,17 @@ export function ComandaView() {
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
-              // CORREÇÃO: Memoizar cálculos para performance
+              // IMPLEMENTAÇÃO: Usar função para filtrar clientes por data da sessão
+              const filteredClients = getClientsForComandaDate(comanda);
+              
+              // CORREÇÃO: Memoizar cálculos para performance usando clientes filtrados
               const totalClients = useMemo(() => 
-                comanda.clients.reduce((sum, client) => sum + client.value, 0), 
-                [comanda.clients]
+                filteredClients.reduce((sum, client) => sum + client.value, 0), 
+                [filteredClients]
               );
               const totalPaid = useMemo(() => 
-                comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0), 
-                [comanda.clients, calculateTotalPaid]
+                filteredClients.reduce((sum, client) => sum + calculateTotalPaid(client), 0), 
+                [filteredClients, calculateTotalPaid]
               );
               const totalPendente = totalClients - totalPaid;
               
@@ -803,7 +830,7 @@ export function ComandaView() {
                             Aberta
                           </Badge>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {comanda.clients.length} clientes
+                            {filteredClients.length} clientes
                           </p>
                         </div>
                       </div>
@@ -835,7 +862,8 @@ export function ComandaView() {
                     </div>
 
                     <div className="space-y-3">
-                      {comanda.clients.map((client) => {
+                      {/* IMPLEMENTAÇÃO: Usar clientes filtrados por data da sessão */}
+                      {filteredClients.map((client) => {
                         const clientTotalPaid = calculateTotalPaid(client);
                         const hasMultiplePayments = client.payments.length > 1;
                         
@@ -934,8 +962,10 @@ export function ComandaView() {
           
           <div className="grid gap-4">
             {closedComandas.slice(0, 10).map((comanda) => {
-              const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
+              // IMPLEMENTAÇÃO: Aplicar filtro também nas comandas fechadas
+              const filteredClients = getClientsForComandaDate(comanda);
+              const totalClients = filteredClients.reduce((sum, client) => sum + client.value, 0);
+              const totalPaid = filteredClients.reduce((sum, client) => sum + calculateTotalPaid(client), 0);
               
               return (
                 <Card key={comanda.id} className="opacity-75">
@@ -946,7 +976,7 @@ export function ComandaView() {
                           Comanda {new Date(comanda.date).toLocaleDateString('pt-BR')}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {comanda.clients.length} clientes • {formatCurrency(totalPaid)} líquido
+                          {filteredClients.length} clientes • {formatCurrency(totalPaid)} líquido
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
