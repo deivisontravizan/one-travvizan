@@ -378,24 +378,6 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
         ))}
       </div>
 
-      {/* Resumo consolidado */}
-      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-        <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Resumo Consolidado</h4>
-        <div className="space-y-1 text-sm">
-          <p className="text-green-700 dark:text-green-300">
-            Total líquido: {totals.totalNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </p>
-          <p className="text-green-700 dark:text-green-300">
-            Valor restante: {remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </p>
-          {remainingValue > 0 && (
-            <p className="text-orange-600 text-xs">
-              ⚠️ Ainda falta receber {remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
-          )}
-        </div>
-      </div>
-
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={saving}>
           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
