@@ -581,27 +581,96 @@ export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<
 // Funções para Comandas
 export async function getComandas(): Promise<Comanda[]> {
   try {
-    const { data, error } = await supabase
-      .from('comandas')
-      .select('*')
-      .order('comanda_date', { ascending: false });
-
-    if (error) {
-      console.error('Erro ao buscar comandas:', error);
-      throw error;
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Usuário não autenticado');
     }
 
-    return (data || []).map(comanda => ({
-      id: comanda.id,
-      date: new Date(comanda.comanda_date),
-      tattooerId: comanda.tattooerid,
-      openingValue: comanda.opening_value,
-      closingValue: comanda.closing_value,
-      status: comanda.status,
-      clients: [],
-      createdAt: new Date(comanda.created_at),
-      updatedAt: new Date(comanda.updated_at)
-    }));
+    // Buscar comandas com dados relacionados usando JOIN
+    const { data: comandasData, error: comandasError } = await supabase
+      .from('comandas')
+      .select('*')
+      .eq('tattooerid', user.id)
+      .order('comanda_date', { ascending: false });
+
+    if (comandasError) {
+      console.error('Erro ao buscar comandas:', comandasError);
+      throw comandasError;
+    }
+
+    // Para cada comanda, buscar os clientes relacionados
+    const comandasWithClients = await Promise.all(
+      (comandasData || []).map(async (comanda) => {
+        // Buscar clientes da comanda
+        const { data: clientsData, error: clientsError } = await supabase
+          .from('comanda_clients')
+          .select('*')
+          .eq('comanda_id', comanda.id)
+          .order('created_at', { ascending: true });
+
+        if (clientsError) {
+          console.error('Erro ao buscar clientes da comanda:', clientsError);
+          // Continuar sem os clientes em caso de erro
+        }
+
+        // Para cada cliente da comanda, buscar os pagamentos
+        const clientsWithPayments = await Promise.all(
+          (clientsData || []).map(async (client) => {
+            const { data: paymentsData, error: paymentsError } = await supabase
+              .from('comanda_payments')
+              .select('*')
+              .eq('comanda_client_id', client.id)
+              .order('created_at', { ascending: true });
+
+            if (paymentsError) {
+              console.error('Erro ao buscar pagamentos do cliente da comanda:', paymentsError);
+              // Continuar sem os pagamentos em caso de erro
+            }
+
+            const payments = (paymentsData || []).map(payment => ({
+              id: payment.id,
+              comandaClientId: payment.comanda_client_id,
+              method: payment.method,
+              grossValue: payment.gross_value,
+              netValue: payment.net_value,
+              fees: payment.fees,
+              installments: payment.installments,
+              feesPaidByClient: payment.fees_paid_by_client,
+              createdAt: new Date(payment.created_at)
+            }));
+
+            return {
+              id: client.id,
+              comandaId: client.comanda_id,
+              clientId: client.client_id,
+              clientName: client.client_name,
+              sessionId: client.session_id,
+              description: client.description,
+              value: client.value,
+              status: client.status,
+              payment: payments[0], // Mantido para compatibilidade
+              payments: payments, // Novo: múltiplos pagamentos
+              createdAt: new Date(client.created_at)
+            };
+          })
+        );
+
+        return {
+          id: comanda.id,
+          date: new Date(comanda.comanda_date),
+          tattooerId: comanda.tattooerid,
+          openingValue: comanda.opening_value,
+          closingValue: comanda.closing_value,
+          status: comanda.status,
+          clients: clientsWithPayments,
+          createdAt: new Date(comanda.created_at),
+          updatedAt: new Date(comanda.updated_at)
+        };
+      })
+    );
+
+    return comandasWithClients;
   } catch (error) {
     console.error('Erro ao buscar comandas:', error);
     return [];
@@ -740,5 +809,67 @@ export async function updateComandaStatus(comandaId: string, status: 'aberta' | 
   } catch (error) {
     console.error('Erro ao atualizar status da comanda:', error);
     throw error;
+  }
+}
+
+// Função auxiliar para buscar clientes de uma comanda específica
+export async function getComandaClients(comandaId: string): Promise<ComandaClient[]> {
+  try {
+    const { data, error } = await supabase
+      .from('comanda_clients')
+      .select('*')
+      .eq('comanda_id', comandaId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar clientes da comanda:', error);
+      throw error;
+    }
+
+    return (data || []).map(client => ({
+      id: client.id,
+      comandaId: client.comanda_id,
+      clientId: client.client_id,
+      clientName: client.client_name,
+      sessionId: client.session_id,
+      description: client.description,
+      value: client.value,
+      status: client.status,
+      createdAt: new Date(client.created_at)
+    }));
+  } catch (error) {
+    console.error('Erro ao buscar clientes da comanda:', error);
+    return [];
+  }
+}
+
+// Função auxiliar para buscar pagamentos de um cliente da comanda
+export async function getComandaPayments(comandaClientId: string): Promise<ComandaPayment[]> {
+  try {
+    const { data, error } = await supabase
+      .from('comanda_payments')
+      .select('*')
+      .eq('comanda_client_id', comandaClientId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar pagamentos do cliente da comanda:', error);
+      throw error;
+    }
+
+    return (data || []).map(payment => ({
+      id: payment.id,
+      comandaClientId: payment.comanda_client_id,
+      method: payment.method,
+      grossValue: payment.gross_value,
+      netValue: payment.net_value,
+      fees: payment.fees,
+      installments: payment.installments,
+      feesPaidByClient: payment.fees_paid_by_client,
+      createdAt: new Date(payment.created_at)
+    }));
+  } catch (error) {
+    console.error('Erro ao buscar pagamentos do cliente da comanda:', error);
+    return [];
   }
 }
