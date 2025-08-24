@@ -652,8 +652,36 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
 
 export async function createComandaClient(clientData: Omit<ComandaClient, 'id' | 'createdAt'>): Promise<ComandaClient> {
   try {
-    // Implementação placeholder - precisa ser implementada quando a tabela for criada
-    throw new Error('Função não implementada - tabela comanda_clients não existe');
+    const { data, error } = await supabase
+      .from('comanda_clients')
+      .insert({
+        comanda_id: clientData.comandaId,
+        client_id: clientData.clientId,
+        client_name: clientData.clientName,
+        session_id: clientData.sessionId,
+        description: clientData.description,
+        value: clientData.value,
+        status: clientData.status
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao criar cliente da comanda:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      comandaId: data.comanda_id,
+      clientId: data.client_id,
+      clientName: data.client_name,
+      sessionId: data.session_id,
+      description: data.description,
+      value: data.value,
+      status: data.status,
+      createdAt: new Date(data.created_at)
+    };
   } catch (error) {
     console.error('Erro ao criar cliente da comanda:', error);
     throw error;
@@ -662,8 +690,36 @@ export async function createComandaClient(clientData: Omit<ComandaClient, 'id' |
 
 export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>): Promise<ComandaPayment> {
   try {
-    // Implementação placeholder - precisa ser implementada quando a tabela for criada
-    throw new Error('Função não implementada - tabela comanda_payments não existe');
+    const { data, error } = await supabase
+      .from('comanda_payments')
+      .insert({
+        comanda_client_id: paymentData.comandaClientId,
+        method: paymentData.method,
+        gross_value: paymentData.grossValue,
+        net_value: paymentData.netValue,
+        fees: paymentData.fees,
+        installments: paymentData.installments,
+        fees_paid_by_client: paymentData.feesPaidByClient
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao criar pagamento da comanda:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      comandaClientId: data.comanda_client_id,
+      method: data.method,
+      grossValue: data.gross_value,
+      netValue: data.net_value,
+      fees: data.fees,
+      installments: data.installments,
+      feesPaidByClient: data.fees_paid_by_client,
+      createdAt: new Date(data.created_at)
+    };
   } catch (error) {
     console.error('Erro ao criar pagamento da comanda:', error);
     throw error;
