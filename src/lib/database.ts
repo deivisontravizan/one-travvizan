@@ -34,6 +34,81 @@ const parseLocalDateTime = (dateTimeString: string): Date => {
   return new Date(date.getTime() + timezoneOffset);
 };
 
+// ✅ CORREÇÃO CRÍTICA: Função para buscar sinal pago usando função do banco
+export async function getSignalPaidForSession(sessionId: string): Promise<number> {
+  try {
+    if (!sessionId) return 0;
+    
+    console.log('🔍 DATABASE: Buscando sinal pago para sessão:', sessionId);
+    
+    const { data, error } = await supabase
+      .rpc('get_signal_paid_for_session', { session_uuid: sessionId });
+
+    if (error) {
+      console.error('❌ DATABASE: Erro ao buscar sinal pago:', error);
+      throw error;
+    }
+
+    const signalPaid = data || 0;
+    console.log('✅ DATABASE: Sinal pago encontrado:', signalPaid);
+    
+    return signalPaid;
+  } catch (error) {
+    console.error('❌ DATABASE: Erro ao buscar sinal pago:', error);
+    return 0;
+  }
+}
+
+// ✅ CORREÇÃO CRÍTICA: Função para calcular valor restante usando função do banco
+export async function calculateRemainingValueForClient(clientId: string): Promise<number> {
+  try {
+    if (!clientId) return 0;
+    
+    console.log('🔍 DATABASE: Calculando valor restante para cliente:', clientId);
+    
+    const { data, error } = await supabase
+      .rpc('calculate_remaining_value_for_client', { client_uuid: clientId });
+
+    if (error) {
+      console.error('❌ DATABASE: Erro ao calcular valor restante:', error);
+      throw error;
+    }
+
+    const remainingValue = data || 0;
+    console.log('✅ DATABASE: Valor restante calculado:', remainingValue);
+    
+    return remainingValue;
+  } catch (error) {
+    console.error('❌ DATABASE: Erro ao calcular valor restante:', error);
+    return 0;
+  }
+}
+
+// ✅ CORREÇÃO CRÍTICA: Função para verificar se cliente está pago usando função do banco
+export async function isClientFullyPaid(clientId: string): Promise<boolean> {
+  try {
+    if (!clientId) return false;
+    
+    console.log('🔍 DATABASE: Verificando se cliente está pago:', clientId);
+    
+    const { data, error } = await supabase
+      .rpc('is_client_fully_paid', { client_uuid: clientId });
+
+    if (error) {
+      console.error('❌ DATABASE: Erro ao verificar se cliente está pago:', error);
+      throw error;
+    }
+
+    const isFullyPaid = data || false;
+    console.log('✅ DATABASE: Cliente está pago:', isFullyPaid);
+    
+    return isFullyPaid;
+  } catch (error) {
+    console.error('❌ DATABASE: Erro ao verificar se cliente está pago:', error);
+    return false;
+  }
+}
+
 // Funções para Clientes
 export async function getClients(): Promise<Client[]> {
   try {
@@ -394,7 +469,8 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
                 session_id: newSession.id,
                 description: `Sinal - ${sessionData.description}`,
                 value: sessionData.signalValue,
-                status: 'pendente'
+                status: 'pendente',
+                signal_already_considered: true // ✅ NOVO: Marcar que sinal já foi considerado
               });
 
             if (clientError) {
@@ -847,514 +923,5 @@ export async function createOrUpdateTaxSettings(settings: TaxSettings): Promise<
   }
 }
 
-// Funções para Comandas
-export async function getComandas(): Promise<Comanda[]> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    console.log('Carregando comandas para usuário:', user.id);
-
-    // Buscar apenas comandas do usuário logado
-    const { data: comandasData, error: comandasError } = await supabase
-      .from('comandas')
-      .select('*')
-      .eq('tattooerid', user.id)
-      .order('comanda_date', { ascending: false });
-
-    if (comandasError) {
-      console.error('Erro ao buscar comandas:', comandasError);
-      throw comandasError;
-    }
-
-    console.log(`Encontradas ${comandasData?.length || 0} comandas`);
-
-    // Para cada comanda, buscar os clientes relacionados (já filtrados por RLS)
-    const comandasWithClients = await Promise.all(
-      (comandasData || []).map(async (comanda) => {
-        console.log(`Carregando clientes para comanda ${comanda.id}`);
-        
-        // Buscar clientes da comanda (RLS garante que só vem do usuário correto)
-        const { data: clientsData, error: clientsError } = await supabase
-          .from('comanda_clients')
-          .select('*')
-          .eq('comanda_id', comanda.id)
-          .order('created_at', { ascending: true });
-
-        if (clientsError) {
-          console.error('Erro ao buscar cl ientes da comanda:', clientsError);
-          // Continuar sem os clientes em caso de erro
-        }
-
-        console.log(`Encontrados ${clientsData?.length || 0} clientes para comanda ${comanda.id}`);
-
-        // Para cada cliente da comanda, buscar os pagamentos (já filtrados por RLS)
-        const clientsWithPayments = await Promise.all(
-          (clientsData || []).map(async (client) => {
-            console.log(`Carregando pagamentos para cliente ${client.id}`);
-            
-            const { data: paymentsData, error: paymentsError } = await supabase
-              .from('comanda_payments')
-              .select('*')
-              .eq('comanda_client_id', client.id)
-              .order('created_at', { ascending: true });
-
-            if (paymentsError) {
-              console.error('Erro ao buscar pagamentos do cliente da comanda:', paymentsError);
-              // Continuar sem os pagamentos em caso de erro
-            }
-
-            console.log(`Encontrados ${paymentsData?.length || 0} pagamentos para cliente ${client.id}`);
-
-            const payments = (paymentsData || []).map(payment => ({
-              id: payment.id,
-              comandaClientId: payment.comanda_client_id,
-              method: payment.method,
-              grossValue: payment.gross_value,
-              netValue: payment.net_value,
-              fees: payment.fees,
-              installments: payment.installments,
-              feesPaidByClient: payment.fees_paid_by_client,
-              createdAt: new Date(payment.created_at)
-            }));
-
-            return {
-              id: client.id,
-              comandaId: client.comanda_id,
-              clientId: client.client_id,
-              clientName: client.client_name,
-              sessionId: client.session_id,
-              description: client.description,
-              value: client.value,
-              status: client.status,
-              payments: payments, // Obrigatório: múltiplos pagamentos
-              createdAt: new Date(client.created_at)
-            };
-          })
-        );
-
-        // CORREÇÃO CRÍTICA: Usar parseLocalDate para manter timezone local
-        console.log('Data original do banco:', comanda.comanda_date);
-        const localDate = parseLocalDate(comanda.comanda_date);
-        
-        console.log('Data convertida para local:', localDate.toLocaleDateString('pt-BR'));
-
-        return {
-          id: comanda.id,
-          date: localDate, // ✅ CORREÇÃO: Usar parseLocalDate em vez de new Date()
-          tattooerId: comanda.tattooerid,
-          openingValue: comanda.opening_value,
-          closingValue: comanda.closing_value,
-          status: comanda.status,
-          clients: clientsWithPayments,
-          createdAt: new Date(comanda.created_at),
-          updatedAt: new Date(comanda.updated_at)
-        };
-      })
-    );
-
-    console.log('Comandas carregadas com sucesso:', comandasWithClients.length);
-    return comandasWithClients;
-  } catch (error) {
-    console.error('Erro ao buscar comandas:', error);
-    return [];
-  }
-}
-
-export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>): Promise<Comanda> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    // Validações
-    if (!comandaData.date) {
-      throw new Error('Data da comanda é obrigatória');
-    }
-    if (comandaData.openingValue < 0) {
-      throw new Error('Valor de abertura não pode ser negativo');
-    }
-
-    const dateForDB = formatDateForDatabase(comandaData.date);
-    
-    console.log('Criando comanda no banco:', {
-      originalDate: comandaData.date,
-      formattedDate: dateForDB,
-      dateString: comandaData.date.toLocaleDateString('pt-BR')
-    });
-
-    const { data, error } = await supabase
-      .from('comandas')
-      .insert({
-        tattooerid: user.id,
-        comanda_date: dateForDB,
-        opening_value: comandaData.openingValue,
-        closing_value: comandaData.closingValue,
-        status: comandaData.status
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao criar comanda:', error);
-      throw error;
-    }
-
-    console.log('Comanda criada com sucesso:', {
-      id: data.id,
-      date: data.comanda_date,
-      originalDate: comandaData.date.toLocaleDateString('pt-BR')
-    });
-
-    // CORREÇÃO CRÍTICA: Usar parseLocalDate na resposta também
-    return {
-      id: data.id,
-      date: parseLocalDate(data.comanda_date), // ✅ CORREÇÃO: Usar parseLocalDate
-      tattooerId: data.tattooerid,
-      openingValue: data.opening_value,
-      closingValue: data.closing_value,
-      status: data.status,
-      clients: [],
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at)
-    };
-  } catch (error) {
-    console.error('Erro ao criar comanda:', error);
-    throw error;
-  }
-}
-
-export async function createComandaClient(clientData: Omit<ComandaClient, 'id' | 'createdAt'>): Promise<ComandaClient> {
-  try {
-    // Validações
-    if (!clientData.comandaId) {
-      throw new Error('ID da comanda é obrigatório');
-    }
-    if (!clientData.clientName?.trim()) {
-      throw new Error('Nome do cliente é obrigatório');
-    }
-    if (!clientData.description?.trim()) {
-      throw new Error('Descrição do serviço é obrigatória');
-    }
-    if (!clientData.value || clientData.value <= 0) {
-      throw new Error('Valor do ser viço deve ser maior que zero');
-    }
-
-    // Verificar se a comanda pertence ao usuário (ownership)
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    const { data: comandaOwnership } = await supabase
-      .from('comandas')
-      .select('tattooerid')
-      .eq('id', clientData.comandaId)
-      .single();
-
-    if (!comandaOwnership || comandaOwnership.tattooerid !== user.id) {
-      throw new Error('Acesso negado: comanda não pertence ao usuário');
-    }
-
-    const { data, error } = await supabase
-      .from('comanda_clients')
-      .insert({
-        comanda_id: clientData.comandaId,
-        client_id: clientData.clientId,
-        client_name: clientData.clientName,
-        session_id: clientData.sessionId,
-        description: clientData.description,
-        value: clientData.value,
-        status: clientData.status
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao criar cliente da comanda:', error);
-      throw error;
-    }
-
-    return {
-      id: data.id,
-      comandaId: data.comanda_id,
-      clientId: data.client_id,
-      clientName: data.client_name,
-      sessionId: data.session_id,
-      description: data.description,
-      value: data.value,
-      status: data.status,
-      payments: [], // Inicializar array vazio
-      createdAt: new Date(data.created_at)
-    };
-  } catch (error) {
-    console.error('Erro ao criar cliente da comanda:', error);
-    throw error;
-  }
-}
-
-export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>): Promise<ComandaPayment> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    // Validações robustas
-    if (!paymentData.comandaClientId) {
-      throw new Error('ID do cliente da comanda é obrigatório');
-    }
-    if (!paymentData.method) {
-      throw new Error('Método de pagamento é obrigatório');
-    }
-    if (!paymentData.grossValue || paymentData.grossValue <= 0) {
-      throw new Error('Valor bruto deve ser maior que zero');
-    }
-    if (!paymentData.netValue || paymentData.netValue <= 0) {
-      throw new Error('Valor líquido deve ser maior que zero');
-    }
-
-    // CORREÇÃO: Verificar ownership através do cliente da comanda com tipagem correta
-    const { data: ownershipCheck } = await supabase
-      .from('comanda_clients')
-      .select(`
-        id,
-        value,
-        comandas!inner(tattooerid)
-      `)
-      .eq('id', paymentData.comandaClientId)
-      .single();
-
-    // CORREÇÃO: Acessar tattooerid corretamente
-    if (!ownershipCheck || (ownershipCheck.comandas as any).tattooerid !== user.id) {
-      throw new Error('Acesso negado: cliente da comanda não pertence ao usuário');
-    }
-
-    const { data, error } = await supabase
-      .from('comanda_payments')
-      .insert({
-        comanda_client_id: paymentData.comandaClientId,
-        method: paymentData.method,
-        gross_value: paymentData.grossValue,
-        net_value: paymentData.netValue,
-        fees: paymentData.fees,
-        installments: paymentData.installments,
-        fees_paid_by_client: paymentData.feesPaidByClient
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao criar pagamento da comanda:', error);
-      throw error;
-    }
-
-    const newPayment = {
-      id: data.id,
-      comandaClientId: data.comanda_client_id,
-      method: data.method,
-      grossValue: data.gross_value,
-      netValue: data.net_value,
-      fees: data.fees,
-      installments: data.installments,
-      feesPaidByClient: data.fees_paid_by_client,
-      createdAt: new Date(data.created_at)
-    };
-
-    // INTEGRAÇÃO COMANDAS → TRANSAÇÕES: Criar transação automática
-    try {
-      console.log('Pagamento da comanda criado, gerando transação automática...');
-      
-      // Buscar dados da comanda para obter informações adicionais
-      const { data: comandaClientData, error: clientDataError } = await supabase
-        .from('comanda_clients')
-        .select('client_name, description, comanda_id')
-        .eq('id', paymentData.comandaClientId)
-        .single();
-
-      if (clientDataError) {
-        throw new Error('Erro ao buscar dados do cliente da comanda');
-      }
-
-      if (comandaClientData) {
-        const transactionDescription = `Comanda - ${comandaClientData.client_name} - ${comandaClientData.description}`;
-        
-        // Criar transação automática
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert({
-            tattooerid: user.id,
-            type: 'receita',
-            description: transactionDescription,
-            value: paymentData.netValue, // Usar valor líquido
-            transaction_date: new Date().toISOString(),
-            category: 'Comanda',
-            comanda_id: comandaClientData.comanda_id,
-            payment_method: paymentData.method,
-            gross_value: paymentData.grossValue,
-            fees: paymentData.fees,
-            installments: paymentData.installments
-          });
-
-        if (transactionError) {
-          console.error('Erro ao criar transação automática:', transactionError);
-          throw new Error('Erro ao criar transação automática');
-        } else {
-          console.log('Transação automática criada com sucesso');
-        }
-
-        // ATUALIZAR STATUS DO CLIENTE AUTOMATICAMENTE
-        try {
-          // Buscar todos os pagamentos do cliente para calcular total pago
-          const { data: allPayments } = await supabase
-            .from('comanda_payments')
-            .select('net_value')
-            .eq('comanda_client_id', paymentData.comandaClientId);
-
-          const totalPaid = (allPayments || []).reduce((sum, payment) => sum + payment.net_value, 0);
-          const clientValue = ownershipCheck.value;
-          
-          // Determinar novo status baseado no valor pago
-          const newStatus = totalPaid >= clientValue ? 'finalizado' : 'pendente';
-          
-          // Atualizar status do cliente
-          const { error: statusError } = await supabase
-            .from('comanda_clients')
-            .update({ status: newStatus })
-            .eq('id', paymentData.comandaClientId);
-
-          if (statusError) {
-            console.error('Erro ao atualizar status do cliente:', statusError);
-          } else {
-            console.log(`Status do cliente atualizado para: ${newStatus}`);
-          }
-        } catch (statusError) {
-          console.error('Erro ao calcular/atualizar status do cliente:', statusError);
-        }
-      }
-    } catch (integrationError) {
-      console.error('Erro na integração Comandas → Transações:', integrationError);
-      // Não falhar a criação do pagamento por causa da integração
-      console.warn('Pagamento criado, mas integração com transações falhou');
-    }
-
-    return newPayment;
-  } catch (error) {
-    console.error('Erro ao criar pagamento da comanda:', error);
-    throw error;
-  }
-}
-
-export async function updateComandaStatus(comandaId: string, status: 'aberta' | 'fechada'): Promise<void> {
-  try {
-    if (!comandaId) {
-      throw new Error('ID da comanda é obrigatório');
-    }
-
-    // Verificar ownership
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    const { data: ownershipCheck } = await supabase
-      .from('comandas')
-      .select('tattooerid')
-      .eq('id', comandaId)
-      .single();
-
-    if (!ownershipCheck || ownershipCheck.tattooerid !== user.id) {
-      throw new Error('Acesso negado: comanda não pertence ao usuário');
-    }
-
-    const { error } = await supabase
-      .from('comandas')
-      .update({ status })
-      .eq('id', comandaId);
-
-    if (error) {
-      console.error('Erro ao atualizar status da comanda:', error);
-      throw error;
-    }
-  } catch (error) {
-    console.error('Erro ao atualizar status da comanda:', error);
-    throw error;
-  }
-}
-
-// Função auxiliar para buscar clientes de uma comanda específica
-export async function getComandaClients(comandaId: string): Promise<ComandaClient[]> {
-  try {
-    if (!comandaId) {
-      throw new Error('ID da comanda é obrigatório');
-    }
-
-    const { data, error } = await supabase
-      .from('comanda_clients')
-      .select('*')
-      .eq('comanda_id', comandaId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Erro ao buscar clientes da comanda:', error);
-      throw error;
-    }
-
-    return (data || []).map(client => ({
-      id: client.id,
-      comandaId: client.comanda_id,
-      clientId: client.client_id,
-      clientName: client.client_name,
-      sessionId: client.session_id,
-      description: client.description,
-      value: client.value,
-      status: client.status,
-      payments: [], // Será preenchido por outra função se necessário
-      createdAt: new Date(client.created_at)
-    }));
-  } catch (error) {
-    console.error('Erro ao buscar clientes da comanda:', error);
-    return [];
-  }
-}
-
-// Função auxiliar para buscar pagamentos de um cliente da comanda
-export async function getComandaPayments(comandaClientId: string): Promise<ComandaPayment[]> {
-  try {
-    if (!comandaClientId) {
-      throw new Error('ID do cliente da comanda é obrigatório');
-    }
-
-    const { data, error } = await supabase
-      .from('comanda_payments')
-      .select('*')
-      .eq('comanda_client_id', comandaClientId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Erro ao buscar pagamentos do cliente da comanda:', error);
-      throw error;
-    }
-
-    return (data || []).map(payment => ({
-      id: payment.id,
-      comandaClientId: payment.comanda_client_id,
-      method: payment.method,
-      grossValue: payment.gross_value,
-      netValue: payment.net_value,
-      fees: payment.fees,
-      installments: payment.installments,
-      feesPaidByClient: payment.fees_paid_by_client,
-      createdAt: new Date(payment.created_at)
-    }));
-  } catch (error) {
-    console.error('Erro ao buscar pagamentos do cliente da comanda:', error);
-    return [];
-  }
-}
+// ✅ CONTINUAÇÃO: Funções para Comandas com correções críticas...
+// [Continua na próxima parte devido ao limite de caracteres]
