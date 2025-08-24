@@ -207,7 +207,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       throw error;
     }
 
-    return {
+    const newSession = {
       id: data.id,
       clientId: data.client_id,
       tattooerId: data.tattooerid,
@@ -222,6 +222,84 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       photos: data.photos || [],
       referenceImages: data.reference_images || []
     };
+
+    // INTEGRAÇÃO AGENDA → COMANDAS: Se há sinal, criar entrada automática na comanda
+    if (sessionData.signalValue && sessionData.signalValue > 0) {
+      try {
+        console.log('Sessão com sinal detectada, integrando com comanda...');
+        
+        // Buscar cliente para obter o nome
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', sessionData.clientId)
+          .single();
+
+        const clientName = clientData?.name || 'Cliente não encontrado';
+        const sessionDate = new Date(sessionData.date);
+        const dateString = sessionDate.toISOString().split('T')[0];
+
+        // Verificar se existe comanda aberta para o dia
+        const { data: existingComanda } = await supabase
+          .from('comandas')
+          .select('*')
+          .eq('tattooerid', user.id)
+          .eq('comanda_date', dateString)
+          .eq('status', 'aberta')
+          .single();
+
+        let comandaId = existingComanda?.id;
+
+        // Se não existe comanda aberta, criar uma nova
+        if (!existingComanda) {
+          console.log('Criando nova comanda para o dia:', dateString);
+          const { data: newComanda, error: comandaError } = await supabase
+            .from('comandas')
+            .insert({
+              tattooerid: user.id,
+              comanda_date: dateString,
+              opening_value: 0,
+              status: 'aberta'
+            })
+            .select()
+            .single();
+
+          if (comandaError) {
+            console.error('Erro ao criar comanda automática:', comandaError);
+          } else {
+            comandaId = newComanda.id;
+            console.log('Nova comanda criada:', comandaId);
+          }
+        }
+
+        // Adicionar cliente à comanda se temos uma comanda válida
+        if (comandaId) {
+          console.log('Adicionando cliente à comanda:', comandaId);
+          const { error: clientError } = await supabase
+            .from('comanda_clients')
+            .insert({
+              comanda_id: comandaId,
+              client_id: sessionData.clientId,
+              client_name: clientName,
+              session_id: newSession.id,
+              description: `Sinal - ${sessionData.description}`,
+              value: sessionData.signalValue,
+              status: 'pendente'
+            });
+
+          if (clientError) {
+            console.error('Erro ao adicionar cliente à comanda:', clientError);
+          } else {
+            console.log('Cliente adicionado à comanda com sucesso');
+          }
+        }
+      } catch (integrationError) {
+        console.error('Erro na integração Agenda → Comandas:', integrationError);
+        // Não falhar a criação da sessão por causa da integração
+      }
+    }
+
+    return newSession;
   } catch (error) {
     console.error('Erro ao criar sessão:', error);
     throw error;
@@ -759,6 +837,12 @@ export async function createComandaClient(clientData: Omit<ComandaClient, 'id' |
 
 export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id' | 'createdAt'>): Promise<ComandaPayment> {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+
     const { data, error } = await supabase
       .from('comanda_payments')
       .insert({
@@ -778,7 +862,7 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
       throw error;
     }
 
-    return {
+    const newPayment = {
       id: data.id,
       comandaClientId: data.comanda_client_id,
       method: data.method,
@@ -789,6 +873,50 @@ export async function createComandaPayment(paymentData: Omit<ComandaPayment, 'id
       feesPaidByClient: data.fees_paid_by_client,
       createdAt: new Date(data.created_at)
     };
+
+    // INTEGRAÇÃO COMANDAS → TRANSAÇÕES: Criar transação automática
+    try {
+      console.log('Pagamento da comanda criado, gerando transação automática...');
+      
+      // Buscar dados da comanda para obter informações adicionais
+      const { data: comandaClientData } = await supabase
+        .from('comanda_clients')
+        .select('client_name, description, comanda_id')
+        .eq('id', paymentData.comandaClientId)
+        .single();
+
+      if (comandaClientData) {
+        const transactionDescription = `Comanda - ${comandaClientData.client_name} - ${comandaClientData.description}`;
+        
+        // Criar transação automática
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert({
+            tattooerid: user.id,
+            type: 'receita',
+            description: transactionDescription,
+            value: paymentData.netValue, // Usar valor líquido
+            transaction_date: new Date().toISOString(),
+            category: 'Comanda',
+            comanda_id: comandaClientData.comanda_id,
+            payment_method: paymentData.method,
+            gross_value: paymentData.grossValue,
+            fees: paymentData.fees,
+            installments: paymentData.installments
+          });
+
+        if (transactionError) {
+          console.error('Erro ao criar transação automática:', transactionError);
+        } else {
+          console.log('Transação automática criada com sucesso');
+        }
+      }
+    } catch (integrationError) {
+      console.error('Erro na integração Comandas → Transações:', integrationError);
+      // Não falhar a criação do pagamento por causa da integração
+    }
+
+    return newPayment;
   } catch (error) {
     console.error('Erro ao criar pagamento da comanda:', error);
     throw error;
