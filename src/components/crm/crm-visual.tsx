@@ -607,8 +607,8 @@ export function CRMVisual() {
         </CardContent>
       </Card>
 
-      {/* ✅ CORREÇÃO COMPLETA: Funil de Vendas com isCombineEnabled={false} */}
-      <DragDropContext onDragEnd={handleDragEnd} isCombineEnabled={false}>
+      {/* ✅ CORREÇÃO: DragDropContext sem propriedade inexistente */}
+      <DragDropContext onDragEnd={handleDragEnd}>
         <div className="lg:hidden">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex gap-4 pb-4" style={{ width: `${columns.length * 280}px` }}>
@@ -635,7 +635,7 @@ export function CRMVisual() {
                       </CardHeader>
                     </Card>
                     
-                    <Droppable droppableId={column.id} isDropDisabled={false}>
+                    <Droppable droppableId={column.id}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
@@ -696,10 +696,11 @@ export function CRMVisual() {
                         R$ {potentialValue.toLocaleString('pt-BR')}
                       </span>
                     </div>
+                  
                   </CardHeader>
                 </Card>
                 
-                <Droppable droppableId={column.id} isDropDisabled={false}>
+                <Droppable droppableId={column.id}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
