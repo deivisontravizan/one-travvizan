@@ -536,27 +536,46 @@ export function ComandaView() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // Função simples para obter data atual
+  // CORREÇÃO CRÍTICA: Função para obter data atual garantindo que seja sempre hoje
   const getTodayDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const day = today.getDate();
-    return new Date(year, month, day);
+    const now = new Date();
+    // Garantir que seja sempre a data local atual
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    console.log('Data de hoje calculada:', {
+      original: now,
+      today: today,
+      formatted: today.toLocaleDateString('pt-BR'),
+      iso: today.toISOString().split('T')[0]
+    });
+    
+    return today;
   };
 
-  // Função para comparar datas simples
+  // CORREÇÃO CRÍTICA: Função para comparar datas de forma mais robusta
   const isSameDate = (date1: Date, date2: Date) => {
     try {
-      const d1Year = date1.getFullYear();
-      const d1Month = date1.getMonth();
-      const d1Day = date1.getDate();
+      // Normalizar ambas as datas para comparação
+      const d1 = new Date(date1);
+      const d2 = new Date(date2);
       
-      const d2Year = date2.getFullYear();
-      const d2Month = date2.getMonth();
-      const d2Day = date2.getDate();
+      const d1Year = d1.getFullYear();
+      const d1Month = d1.getMonth();
+      const d1Day = d1.getDate();
       
-      return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+      const d2Year = d2.getFullYear();
+      const d2Month = d2.getMonth();
+      const d2Day = d2.getDate();
+      
+      const result = d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+      
+      console.log('Comparação de datas:', {
+        date1: d1.toLocaleDateString('pt-BR'),
+        date2: d2.toLocaleDateString('pt-BR'),
+        result: result
+      });
+      
+      return result;
     } catch (error) {
       console.error('Erro ao comparar datas:', error);
       return false;
@@ -605,34 +624,56 @@ export function ComandaView() {
     }
   };
 
-  // Função para filtrar clientes da comanda por data da sessão
+  // CORREÇÃO CRÍTICA: Função para filtrar clientes da comanda por data da sessão
   const getClientsForComandaDate = useMemo(() => {
     return (comanda: Comanda) => {
       try {
         if (!comanda || !comanda.date || !comanda.clients || !Array.isArray(comanda.clients)) {
+          console.log('Comanda inválida ou sem clientes:', comanda?.id);
           return [];
         }
+
+        console.log(`Filtrando clientes para comanda ${comanda.id}:`, {
+          comandaDate: comanda.date.toLocaleDateString('pt-BR'),
+          totalClients: comanda.clients.length,
+          totalSessions: sessions.length
+        });
         
-        return comanda.clients.filter(client => {
+        const filteredClients = comanda.clients.filter(client => {
           try {
-            // Se não tem sessionId, incluir o cliente
+            // Se não tem sessionId, incluir o cliente (cliente avulso)
             if (!client.sessionId) {
+              console.log(`Cliente ${client.clientName} incluído (sem sessão)`);
               return true;
             }
             
             // Buscar a sessão correspondente
             const session = sessions.find(s => s && s.id === client.sessionId);
             if (!session || !session.date) {
+              console.log(`Sessão não encontrada para cliente ${client.clientName}, incluindo por segurança`);
               return true;
             }
             
-            // Comparar datas
-            return isSameDate(new Date(session.date), new Date(comanda.date));
+            // CORREÇÃO: Comparar datas de forma mais robusta
+            const sessionDate = new Date(session.date);
+            const comandaDate = new Date(comanda.date);
+            const isSame = isSameDate(sessionDate, comandaDate);
+            
+            console.log(`Cliente ${client.clientName}:`, {
+              sessionDate: sessionDate.toLocaleDateString('pt-BR'),
+              comandaDate: comandaDate.toLocaleDateString('pt-BR'),
+              incluir: isSame
+            });
+            
+            return isSame;
           } catch (error) {
             console.error('Erro ao filtrar cliente:', error);
-            return true;
+            return true; // Em caso de erro, incluir o cliente
           }
         });
+
+        console.log(`Resultado: ${filteredClients.length} clientes filtrados para comanda ${comanda.id}`);
+        return filteredClients;
       } catch (error) {
         console.error('Erro ao filtrar clientes da comanda:', error);
         return [];
@@ -655,7 +696,7 @@ export function ComandaView() {
             if (!comanda || !comanda.date) {
               return false;
             }
-            return isSameDate(new Date(comanda.date), selectedDate);
+            return i sSameDate(new Date(comanda.date), selectedDate);
           } catch (error) {
             console.error('Erro ao filtrar comanda por data:', error);
             return false;
@@ -679,10 +720,12 @@ export function ComandaView() {
     setSaving(true);
 
     try {
+      // CORREÇÃO: Garantir que sempre use a data de hoje
       const todayDate = getTodayDate();
       
       console.log('Criando comanda para hoje:', {
-        date: todayDate.toLocaleDateString('pt-BR')
+        date: todayDate.toLocaleDateString('pt-BR'),
+        iso: todayDate.toISOString().split('T')[0]
       });
 
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -785,6 +828,22 @@ export function ComandaView() {
   }, [filteredComandas]);
 
   const todayDate = getTodayDate();
+
+  // CORREÇÃO: Verificar se existe comanda para hoje
+  const todayComanda = useMemo(() => {
+    const today = getTodayDate();
+    return comandas.find(comanda => {
+      if (!comanda || !comanda.date) return false;
+      return isSameDate(new Date(comanda.date), today);
+    });
+  }, [comandas]);
+
+  console.log('Estado atual das comandas:', {
+    totalComandas: comandas.length,
+    comandaDeHoje: todayComanda ? 'Encontrada' : 'Não encontrada',
+    dataHoje: todayDate.toLocaleDateString('pt-BR'),
+    sessoes: sessions.length
+  });
 
   return (
     <div className="space-y-6">
@@ -894,6 +953,22 @@ export function ComandaView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* DEBUG: Informações para diagnóstico */}
+      {process.env.NODE_ENV === 'development' && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <h4 className="font-medium text-yellow-800 mb-2">Debug - Integração Agenda → Comandas</h4>
+            <div className="text-sm text-yellow-700 space-y-1">
+              <p>Data de hoje: {todayDate.toLocaleDateString('pt-BR')}</p>
+              <p>Total de comandas: {comandas.length}</p>
+              <p>Total de sessões: {sessions.length}</p>
+              <p>Comanda de hoje: {todayComanda ? `Encontrada (${todayComanda.clients.length} clientes)` : 'Não encontrada'}</p>
+              <p>Sessões de hoje: {sessions.filter(s => isSameDate(new Date(s.date), todayDate)).length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Comandas Abertas */}
       <div className="space-y-4">
