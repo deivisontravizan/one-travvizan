@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useApp } from '@/contexts/app-context';
+import { useAuth } from '@/contexts/auth-context';
 import { Comanda, ComandaClient, ComandaPayment } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -106,10 +108,10 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     }
   };
 
-  // Calcular valores para um pagamento específico
+  // CORREÇÃO: Calcular valores para um pagamento específico com lógica correta
   const calculatePaymentValues = (payment: typeof payments[0]) => {
     const value = parseFloat(payment.value.replace(',', '.'));
-    if (isNaN(value)) return { grossValue: 0, netValue: 0, fees: 0 };
+    if (isNaN(value) || value <= 0) return { grossValue: 0, netValue: 0, fees: 0 };
 
     let rate = 0;
     if (['credito-vista', 'credito-parcelado', 'debito', 'pix'].includes(payment.method)) {
@@ -121,11 +123,12 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     let fees: number;
 
     if (payment.feesPaidByClient) {
-      grossValue = value;
-      fees = (grossValue * rate) / 100;
-      netValue = grossValue;
-    } else {
+      // Cliente paga as taxas: valor informado é líquido, calcular bruto
       netValue = value;
+      fees = (value * rate) / (100 - rate);
+      grossValue = netValue + fees;
+    } else {
+      // Estabelecimento paga as taxas: valor informado é bruto, calcular líquido
       grossValue = value;
       fees = (grossValue * rate) / 100;
       netValue = grossValue - fees;
@@ -254,14 +257,14 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>Forma de Pagamento</Label>
+                <Label htmlFor={`method-${index}`}>Forma de Pagamento</Label>
                 <Select 
                   value={payment.method} 
                   onValueChange={(value: ComandaPayment['method']) => 
                     updatePayment(index, { method: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id={`method-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,8 +284,9 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
               </div>
 
               <div>
-                <Label>Valor (R$)</Label>
+                <Label htmlFor={`value-${index}`}>Valor (R$)</Label>
                 <Input
+                  id={`value-${index}`}
                   value={payment.value}
                   onChange={(e) => updatePayment(index, { value: e.target.value })}
                   placeholder="0,00"
@@ -294,20 +298,21 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <Switch
+                    id={`fees-${index}`}
                     checked={payment.feesPaidByClient}
                     onCheckedChange={(checked) => updatePayment(index, { feesPaidByClient: checked })}
                   />
-                  <Label className="text-sm">Cliente paga as taxas</Label>
+                  <Label htmlFor={`fees-${index}`} className="text-sm">Cliente paga as taxas</Label>
                 </div>
 
                 {payment.method === 'credito-parcelado' && (
                   <div>
-                    <Label>Número de Parcelas</Label>
+                    <Label htmlFor={`installments-${index}`}>Número de Parcelas</Label>
                     <Select 
                       value={payment.installments.toString()} 
                       onValueChange={(value) => updatePayment(index, { installments: parseInt(value) })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id={`installments-${index}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -370,7 +375,7 @@ interface ClientFormProps {
 }
 
 function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
-  const { clients } = useApp();
+  const { clients, comandas } = useApp();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
@@ -378,6 +383,10 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
     description: '',
     value: ''
   });
+
+  // CORREÇÃO: Verificar se a comanda está aberta
+  const selectedComanda = comandas.find(c => c.id === comandaId);
+  const isComandaOpen = selectedComanda?.status === 'aberta';
 
   const handleClientSelect = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
@@ -391,6 +400,12 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // CORREÇÃO: Validar se comanda está aberta
+    if (!isComandaOpen) {
+      toast.error('Não é possível adicionar clientes a uma comanda fechada');
+      return;
+    }
+    
     if (!formData.clientName.trim()) {
       toast.error('Nome do cliente é obrigatório');
       return;
@@ -401,8 +416,8 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
       return;
     }
     
-    if (!formData.value) {
-      toast.error('Valor é obrigatório');
+    if (!formData.value || parseFloat(formData.value.replace(',', '.')) <= 0) {
+      toast.error('Valor deve ser maior que zero');
       return;
     }
 
@@ -416,7 +431,7 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
         description: formData.description,
         value: parseFloat(formData.value.replace(',', '.')),
         status: 'pendente',
-        payments: [] // CORREÇÃO: Adicionar propriedade payments obrigatória
+        payments: []
       };
 
       await onSave(client);
@@ -429,12 +444,24 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
     }
   };
 
+  if (!isComandaOpen) {
+    return (
+      <div className="text-center py-8">
+        <XCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+        <h3 className="font-medium mb-2">Comanda Fechada</h3>
+        <p className="text-sm text-muted-foreground">
+          Não é possível adicionar clientes a uma comanda fechada.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="clientSelect">Cliente Cadastrado (Opcional)</Label>
         <Select value={formData.clientId} onValueChange={handleClientSelect}>
-          <SelectTrigger>
+          <SelectTrigger id="clientSelect">
             <SelectValue placeholder="Selecione um cliente ou digite um novo" />
           </SelectTrigger>
           <SelectContent>
@@ -495,6 +522,7 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 
 export function ComandaView() {
   const { comandas, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
+  const { user } = useAuth(); // CORREÇÃO: Importar useAuth para pegar o usuário
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -511,25 +539,32 @@ export function ComandaView() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Função para filtrar comandas por data
-  const filterComandsByDate = (comandas: Comanda[]) => {
-    if (!selectedDate) return comandas;
-    
-    return comandas.filter(comanda => {
-      const comandaDate = new Date(comanda.date);
-      return (
-        comandaDate.getDate() === selectedDate.getDate() &&
-        comandaDate.getMonth() === selectedDate.getMonth() &&
-        comandaDate.getFullYear() === selectedDate.getFullYear()
-      );
-    });
-  };
+  // CORREÇÃO: Função para calcular total pago (única definição)
+  const calculateTotalPaid = useMemo(() => {
+    return (client: ComandaClient) => {
+      return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
+    };
+  }, []);
+
+  // CORREÇÃO: Filtro de data com comparação correta usando toDateString
+  const filterComandsByDate = useMemo(() => {
+    return (comandas: Comanda[]) => {
+      if (!selectedDate) return comandas;
+      
+      const selectedDateString = selectedDate.toDateString();
+      
+      return comandas.filter(comanda => {
+        const comandaDate = new Date(comanda.date);
+        return comandaDate.toDateString() === selectedDateString;
+      });
+    };
+  }, [selectedDate]);
 
   const handleCreateComanda = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newComandaValue) {
-      toast.error('Valor de abertura é obrigatório');
+    if (!newComandaValue || parseFloat(newComandaValue.replace(',', '.')) < 0) {
+      toast.error('Valor de abertura deve ser maior ou igual a zero');
       return;
     }
 
@@ -538,7 +573,7 @@ export function ComandaView() {
     try {
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
         date: new Date(),
-        tattooerId: '1', // TODO: pegar do contexto
+        tattooerId: user?.id || '', // CORREÇÃO: Usar ID do usuário autenticado
         openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
         clients: []
@@ -560,6 +595,7 @@ export function ComandaView() {
     try {
       await addComandaClient(clientData);
       setIsClientFormOpen(false);
+      setSelectedComanda(''); // Limpar seleção
     } catch (error) {
       console.error('Erro ao salvar cliente:', error);
       throw error;
@@ -597,15 +633,10 @@ export function ComandaView() {
     }
   };
 
-  // Função para calcular total pago considerando múltiplos pagamentos
-  const calculateTotalPaid = (client: ComandaClient) => {
-    return client.payments.reduce((sum, payment) => sum + payment.netValue, 0);
-  };
-
-  // Aplicar filtro de data
-  const filteredComandas = filterComandsByDate(comandas);
-  const openComandas = filteredComandas.filter(c => c.status === 'aberta');
-  const closedComandas = filteredComandas.filter(c => c.status === 'fechada');
+  // CORREÇÃO: Aplicar filtro de data com memoização
+  const filteredComandas = useMemo(() => filterComandsByDate(comandas), [comandas, filterComandsByDate]);
+  const openComandas = useMemo(() => filteredComandas.filter(c => c.status === 'aberta'), [filteredComandas]);
+  const closedComandas = useMemo(() => filteredComandas.filter(c => c.status === 'fechada'), [filteredComandas]);
 
   return (
     <div className="space-y-6">
@@ -718,8 +749,15 @@ export function ComandaView() {
         {openComandas.length > 0 ? (
           <div className="grid gap-4">
             {openComandas.map((comanda) => {
-              const totalClients = comanda.clients.reduce((sum, client) => sum + client.value, 0);
-              const totalPaid = comanda.clients.reduce((sum,  client) => sum + calculateTotalPaid(client), 0);
+              // CORREÇÃO: Memoizar cálculos para performance
+              const totalClients = useMemo(() => 
+                comanda.clients.reduce((sum, client) => sum + client.value, 0), 
+                [comanda.clients]
+              );
+              const totalPaid = useMemo(() => 
+                comanda.clients.reduce((sum, client) => sum + calculateTotalPaid(client), 0), 
+                [comanda.clients, calculateTotalPaid]
+              );
               const totalPendente = totalClients - totalPaid;
               
               return (
@@ -736,14 +774,29 @@ export function ComandaView() {
                         </p>
                       </div>
                       <div className="text-right flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCloseComanda(comanda.id)}
-                        >
-                          <Lock className="h-4 w-4 mr-1" />
-                          Fechar
-                        </Button>
+                        {/* CORREÇÃO: Adicionar confirmação antes de fechar comanda */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Lock className="h-4 w-4 mr-1" />
+                              Fechar
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Fechar Comanda</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja fechar esta comanda? Esta ação não poderá ser desfeita facilmente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleCloseComanda(comanda.id)}>
+                                Fechar Comanda
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                 
                         <div>
                           <Badge variant="outline" className="text-green-600 border-green-600">
@@ -928,7 +981,10 @@ export function ComandaView() {
           <ClientForm
             comandaId={selectedComanda}
             onSave={handleSaveClient}
-            onCancel={() => setIsClientFormOpen(false)}
+            onCancel={() => {
+              setIsClientFormOpen(false);
+              setSelectedComanda('');
+            }}
           />
         </DialogContent>
       </Dialog>
