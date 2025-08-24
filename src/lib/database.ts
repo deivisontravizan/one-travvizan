@@ -10,6 +10,16 @@ const formatDateForDatabase = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+// CORREÇÃO: Função para converter string de data do banco para Date local
+const parseLocalDate = (dateString: string): Date => {
+  // Dividir a string de data em partes
+  const [year, month, day] = dateString.split('-').map(Number);
+  
+  // Criar Date local (sem conversão UTC)
+  // month - 1 porque Date() usa meses de 0-11
+  return new Date(year, month - 1, day);
+};
+
 // Funções para Clientes
 export async function getClients(): Promise<Client[]> {
   try {
@@ -833,9 +843,15 @@ export async function getComandas(): Promise<Comanda[]> {
           })
         );
 
+        // CORREÇÃO CRÍTICA: Usar parseLocalDate para manter timezone local
+        console.log('Data original do banco:', comanda.comanda_date);
+        const localDate = parseLocalDate(comanda.comanda_date);
+        
+        console.log('Data convertida para local:', localDate.toLocaleDateString('pt-BR'));
+
         return {
           id: comanda.id,
-          date: new Date(comanda.comanda_date),
+          date: localDate, // ✅ CORREÇÃO: Usar parseLocalDate em vez de new Date()
           tattooerId: comanda.tattooerid,
           openingValue: comanda.opening_value,
           closingValue: comanda.closing_value,
@@ -902,9 +918,10 @@ export async function createComanda(comandaData: Omit<Comanda, 'id' | 'createdAt
       originalDate: comandaData.date.toLocaleDateString('pt-BR')
     });
 
+    // CORREÇÃO CRÍTICA: Usar parseLocalDate na resposta também
     return {
       id: data.id,
-      date: new Date(data.comanda_date),
+      date: parseLocalDate(data.comanda_date), // ✅ CORREÇÃO: Usar parseLocalDate
       tattooerId: data.tattooerid,
       openingValue: data.opening_value,
       closingValue: data.closing_value,
