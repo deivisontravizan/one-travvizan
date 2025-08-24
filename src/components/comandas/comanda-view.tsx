@@ -535,6 +535,13 @@ export function ComandaView() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+  // CORREÇÃO: Função para obter data atual sem problemas de timezone
+  const getCurrentDate = () => {
+    const now = new Date();
+    // Criar data local sem problemas de timezone
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  };
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
@@ -596,7 +603,7 @@ export function ComandaView() {
 
     try {
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
-        date: new Date(),
+        date: getCurrentDate(), // CORREÇÃO: Usar função que garante data atual
         tattooerId: user?.id || '',
         openingValue: parseFloat(newComandaValue.replace(',', '.')),
         status: 'aberta',
@@ -606,7 +613,7 @@ export function ComandaView() {
       await addComanda(comanda);
       setNewComandaValue('');
       setIsComandaFormOpen(false);
-      toast.success('Comanda criada com sucesso!');
+      toast.success(`Comanda criada para ${getCurrentDate().toLocaleDateString('pt-BR')}!`);
     } catch (error) {
       console.error('Erro ao criar comanda:', error);
       toast.error('Erro ao criar comanda. Tente novamente.');
@@ -679,9 +686,16 @@ export function ComandaView() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Criar Nova Comanda</DialogTitle>
+              <DialogTitle>
+                Criar Nova Comanda - {getCurrentDate().toLocaleDateString('pt-BR')}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateComanda} className="space-y-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  📅 Esta comanda será criada para <strong>hoje ({getCurrentDate().toLocaleDateString('pt-BR')})</strong> e mostrará os clientes agendados para esta data.
+                </p>
+              </div>
               <div>
                 <Label htmlFor="openingValue">Valor de Abertura (R$)</Label>
                 <Input
