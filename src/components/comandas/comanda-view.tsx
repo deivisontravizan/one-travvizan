@@ -536,10 +536,25 @@ export function ComandaView() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // CORREÇÃO: Função para obter data atual sem problemas de timezone
-  const getCurrentDate = () => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // CORREÇÃO DEFINITIVA: Função para obter data atual garantindo timezone local
+  const getTodayDate = () => {
+    const today = new Date();
+    // Garantir que sempre seja a data local, não UTC
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const day = today.getDate();
+    
+    // Criar nova data com componentes locais
+    return new Date(year, month, day);
+  };
+
+  // CORREÇÃO: Função para formatar data sem problemas de timezone
+  const formatDateForDatabase = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
   };
 
   const formatCurrency = (value: number) => {
@@ -664,10 +679,19 @@ export function ComandaView() {
     setSaving(true);
 
     try {
+      // CORREÇÃO DEFINITIVA: Usar data de hoje garantindo timezone local
+      const todayDate = getTodayDate();
+      
+      console.log('Criando comanda para a data:', {
+        dateObject: todayDate,
+        dateString: todayDate.toLocaleDateString('pt-BR'),
+        formattedForDB: formatDateForDatabase(todayDate)
+      });
+
       const comanda: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'> = {
-        date: getCurrentDate(),
+        date: todayDate, // Usar data de hoje sem problemas de timezone
         tattooerId: user?.id || '',
-        openingValue: parseFloat(newComandaValue.replace(',', '.')),
+        openingValue: parseFloat(newCom andaValue.replace(',', '.')),
         status: 'aberta',
         clients: []
       };
@@ -675,7 +699,7 @@ export function ComandaView() {
       await addComanda(comanda);
       setNewComandaValue('');
       setIsComandaFormOpen(false);
-      toast.success(`Comanda criada para ${getCurrentDate().toLocaleDateString('pt-BR')}!`);
+      toast.success(`Comanda criada para HOJE (${todayDate.toLocaleDateString('pt-BR')})!`);
     } catch (error) {
       console.error('Erro ao criar comanda:', error);
       toast.error('Erro ao criar comanda. Tente novamente.');
@@ -763,6 +787,9 @@ export function ComandaView() {
     }
   }, [filteredComandas]);
 
+  // CORREÇÃO: Obter data de hoje para exibição
+  const todayDate = getTodayDate();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -781,13 +808,13 @@ export function ComandaView() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Criar Nova Comanda - {getCurrentDate().toLocaleDateString('pt-BR')}
+                Criar Nova Comanda - HOJE ({todayDate.toLocaleDateString('pt-BR')})
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateComanda} className="space-y-4">
               <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  📅 Esta comanda será criada para <strong>hoje ({getCurrentDate().toLocaleDateString('pt-BR')})</strong> e mostrará os clientes agendados para esta data.
+                  📅 Esta comanda será criada para <strong>HOJE ({todayDate.toLocaleDateString('pt-BR')})</strong> e mostrará os clientes agendados para esta data.
                 </p>
               </div>
               <div>
@@ -803,7 +830,7 @@ export function ComandaView() {
               <div className="flex gap-2">
                 <Button type="submit" className="flex-1" disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Criar Comanda
+                  Criar Comanda para HOJE
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setIsComandaFormOpen(false)} disabled={saving}>
                   Cancelar
