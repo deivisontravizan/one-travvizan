@@ -37,16 +37,22 @@ import {
   X,
   Filter,
   Users,
-  UserCheck
+  UserCheck,
+  Info
 } from 'lucide-react';
 
 interface PaymentFormProps {
   comandaClient: ComandaClient;
   onSave: (payment: Omit<ComandaPayment, 'id' | 'createdAt'>) => Promise<void>;
   onCancel: () => void;
+  sessionInfo?: {
+    signalPaid: number;
+    remainingValue: number;
+    totalValue: number;
+  };
 }
 
-function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
+function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFormProps) {
   const { taxSettings } = useApp();
   const [saving, setSaving] = useState(false);
   const [payments, setPayments] = useState<Array<{
@@ -56,7 +62,7 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
     feesPaidByClient: boolean;
   }>>([{
     method: 'dinheiro',
-    value: '',
+    value: sessionInfo?.remainingValue ? sessionInfo.remainingValue.toFixed(2).replace('.', ',') : '',
     installments: 1,
     feesPaidByClient: false
   }]);
@@ -231,6 +237,39 @@ function PaymentForm({ comandaClient, onSave, onCancel }: PaymentFormProps) {
           {comandaClient.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </div>
+
+      {/* ✅ NOVA SEÇÃO: Informações do Sinal */}
+      {sessionInfo && sessionInfo.signalPaid > 0 && (
+        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-2 mb-3">
+            <Info className="h-4 w-4 text-blue-600" />
+            <h4 className="font-medium text-blue-800 dark:text-blue-200">Informações da Sessão</h4>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <label className="text-blue-700 dark:text-blue-300">Valor Total</label>
+              <p className="font-bold text-blue-800 dark:text-blue-200">
+                {sessionInfo.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </div>
+            <div>
+              <label className="text-green-700 dark:text-green-300">Sinal Já Pago</label>
+              <p className="font-bold text-green-800 dark:text-green-200">
+                {sessionInfo.signalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </div>
+            <div>
+              <label className="text-orange-700 dark:text-orange-300">Valor Restante</label>
+              <p className="font-bold text-orange-800 dark:text-orange-200">
+                {sessionInfo.remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 p-2 bg-blue-100 dark:bg-blue-900 rounded text-xs text-blue-800 dark:text-blue-200">
+            💡 O valor do primeiro pagamento foi pré-preenchido com o valor restante a pagar.
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -523,13 +562,18 @@ function ClientForm({ comandaId, onSave, onCancel }: ClientFormProps) {
 }
 
 export function ComandaView() {
-  const { comandas, sessions, clients, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
+  const { comandas, sessions, clients, transactions, addComanda, addComandaClient, addComandaPayment, reopenComanda, closeComanda } = useApp();
   const { user } = useAuth();
   const [isComandaFormOpen, setIsComandaFormOpen] = useState(false);
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [selectedComanda, setSelectedComanda] = useState<string>('');
   const [selectedClient, setSelectedClient] = useState<ComandaClient | null>(null);
+  const [selectedSessionInfo, setSelectedSessionInfo] = useState<{
+    signalPaid: number;
+    remainingValue: number;
+    totalValue: number;
+  } | undefined>(undefined);
   const [newComandaValue, setNewComandaValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [closingComanda, setClosingComanda] = useState<string | null>(null);
@@ -602,6 +646,22 @@ export function ComandaView() {
       }, 0);
     } catch (error) {
       console.error('Erro ao calcular total pago:', error);
+      return 0;
+    }
+  };
+
+  // ✅ NOVA FUNCIONALIDADE: Buscar sinal já pago para uma sessão
+  const getSignalPaidForSession = (sessionId: string) => {
+    try {
+      const signalTransactions = transactions.filter(transaction => 
+        transaction.sessionId === sessionId && 
+        transaction.category === 'Sinal' &&
+        transaction.type === 'receita'
+      );
+      
+      return signalTransactions.reduce((sum, transaction) => sum + transaction.value, 0);
+    } catch (error) {
+      console.error('Erro ao buscar sinal pago:', error);
       return 0;
     }
   };
@@ -781,6 +841,7 @@ export function ComandaView() {
       await addComandaPayment(paymentData);
       setIsPaymentFormOpen(false);
       setSelectedClient(null);
+      setSelectedSessionInfo(undefined);
     } catch (error) {
       console.error('Erro ao salvar pagamento:', error);
       throw error;
@@ -816,16 +877,50 @@ export function ComandaView() {
     }
   };
 
-  // ✅ NOVA FUNCIONALIDADE: Adicionar cliente agendado à comanda antes do pagamento
+  // ✅ NOVA FUNCIONALIDADE CORRIGIDA: Adicionar cliente agendado à comanda antes do pagamento
   const handlePaymentForScheduledClient = async (client: ComandaClient, comandaId: string) => {
     try {
-      console.log('🎯 Adicionando cliente agendado à comanda antes do pagamento:', {
+      console.log('🎯 Processando pagamento para cliente:', {
         client: client,
         comandaId: comandaId,
         isFromSession: client.id.startsWith('session-')
       });
 
-      // Se é um cliente da sessão, primeiro adicionar à comanda
+      // ✅ CORREÇÃO: Verificar se cliente já existe na comanda
+      const existingComanda = comandas.find(c => c.id === comandaId);
+      const clientAlreadyExists = existingComanda?.clients.some(c => 
+        c.sessionId === client.sessionId && c.clientName === client.clientName
+      );
+
+      if (clientAlreadyExists) {
+        console.log('✅ Cliente já existe na comanda, abrindo pagamento diretamente');
+        const existingClient = existingComanda.clients.find(c => 
+          c.sessionId === client.sessionId && c.clientName === client.clientName
+        );
+        
+        if (existingClient) {
+          // ✅ Calcular informações do sinal se for de uma sessão
+          let sessionInfo = undefined;
+          if (client.sessionId) {
+            const signalPaid = getSignalPaidForSession(client.sessionId);
+            const totalValue = client.value;
+            const remainingValue = totalValue - signalPaid;
+            
+            sessionInfo = {
+              signalPaid,
+              totalValue,
+              remainingValue: remainingValue > 0 ? remainingValue : 0
+            };
+          }
+          
+          setSelectedClient(existingClient);
+          setSelectedSessionInfo(sessionInfo);
+          setIsPaymentFormOpen(true);
+        }
+        return;
+      }
+
+      // Se é um cliente da sessão e não existe na comanda, adicionar primeiro
       if (client.id.startsWith('session-')) {
         const clientData: Omit<ComandaClient, 'id' | 'createdAt'> = {
           comandaId: comandaId,
@@ -843,20 +938,33 @@ export function ComandaView() {
         
         console.log('✅ Cliente agendado adicionado à comanda com sucesso');
         
-        // Buscar o cliente recém-adicionado para obter o ID real
-        // Aguardar um momento para o estado atualizar
+        // Aguardar um momento para o estado atualizar e abrir pagamento
         setTimeout(() => {
-          // Encontrar a comanda atualizada
           const updatedComanda = comandas.find(c => c.id === comandaId);
           if (updatedComanda) {
-            // Encontrar o cliente recém-adicionado
             const addedClient = updatedComanda.clients.find(c => 
               c.sessionId === client.sessionId && c.clientName === client.clientName
             );
             
             if (addedClient) {
               console.log('✅ Cliente encontrado na comanda, abrindo formulário de pagamento');
+              
+              // ✅ Calcular informações do sinal
+              let sessionInfo = undefined;
+              if (client.sessionId) {
+                const signalPaid = getSignalPaidForSession(client.sessionId);
+                const totalValue = client.value;
+                const remainingValue = totalValue - signalPaid;
+                
+                sessionInfo = {
+                  signalPaid,
+                  totalValue,
+                  remainingValue: remainingValue > 0 ? remainingValue : 0
+                };
+              }
+              
               setSelectedClient(addedClient);
+              setSelectedSessionInfo(sessionInfo);
               setIsPaymentFormOpen(true);
             } else {
               console.error('❌ Cliente não encontrado na comanda após adição');
@@ -868,6 +976,7 @@ export function ComandaView() {
       } else {
         // Cliente já está na comanda, abrir diretamente o pagamento
         setSelectedClient(client);
+        setSelectedSessionInfo(undefined);
         setIsPaymentFormOpen(true);
       }
     } catch (error) {
@@ -1136,7 +1245,10 @@ export function ComandaView() {
 
                         const clientTotalPaid = calculateTotalPaid(client);
                         const hasMultiplePayments = client.payments && client.payments.length > 1;
-                        const isFromSession = client.id.startsWith('session-'); // ✅ Identificar se vem da sessão
+                        const isFromSession = client.id.startsWith('session-');
+                        
+                        // ✅ Calcular sinal pago se for de uma sessão
+                        const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId) : 0;
                         
                         return (
                           <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -1155,6 +1267,11 @@ export function ComandaView() {
                                     Na Comanda
                                   </Badge>
                                 )}
+                                {signalPaid > 0 && (
+                                  <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                                    Sinal: {formatCurrency(signalPaid)}
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-muted-foreground">{client.description || 'Sem descrição'}</p>
                               {hasMultiplePayments && (
@@ -1171,6 +1288,11 @@ export function ComandaView() {
                                     Líquido: {formatCurrency(clientTotalPaid)}
                                   </p>
                                 )}
+                                {signalPaid > 0 && (
+                                  <p className="text-xs text-orange-600">
+                                    Restante: {formatCurrency((client.value || 0) - signalPaid)}
+                                  </p>
+                                )}
                               </div>
                               {client.status === 'finalizado' ? (
                                 <Badge variant="outline" className="text-green-600 border-green-600">
@@ -1181,13 +1303,7 @@ export function ComandaView() {
                                 <Button
                                   size="sm"
                                   onClick={() => {
-                                    // ✅ NOVA LÓGICA: Tratar clientes agendados
-                                    if (isFromSession) {
-                                      handlePaymentForScheduledClient(client, comanda.id);
-                                    } else {
-                                      setSelectedClient(client);
-                                      setIsPaymentFormOpen(true);
-                                    }
+                                    handlePaymentForScheduledClient(client, comanda.id);
                                   }}
                                 >
                                   <DollarSign className="h-3 w-3 mr-1" />
@@ -1284,7 +1400,7 @@ export function ComandaView() {
                         </Badge>
                       </div>
                     </div>
-                  </CardContent>
+                  </Car dContent>
                 </Card>
               );
             })}
@@ -1318,10 +1434,12 @@ export function ComandaView() {
           {selectedClient && (
             <PaymentForm
               comandaClient={selectedClient}
+              sessionInfo={selectedSessionInfo}
               onSave={handleSavePayment}
               onCancel={() => {
                 setIsPaymentFormOpen(false);
                 setSelectedClient(null);
+                setSelectedSessionInfo(undefined);
               }}
             />
           )}
