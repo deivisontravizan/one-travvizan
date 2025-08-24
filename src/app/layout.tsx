@@ -6,7 +6,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Tattoo Studio Manager",
+  title: "One Travizan",
   description: "Sistema completo para gestão de estúdios de tatuagem",
 };
 
