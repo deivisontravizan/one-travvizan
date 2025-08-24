@@ -300,24 +300,33 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
       }
     }
 
-    // Validação de valores
+    // ✅ DIAGNÓSTICO DETALHADO - Logs antes do parsing
+    console.log('🔍 DIAGNÓSTICO COMPLETO - Dados antes do parsing:', {
+      signalValueRaw: sessionData.signalValue,
+      signalValueType: typeof sessionData.signalValue,
+      signalValueLength: sessionData.signalValue?.length,
+      totalValueRaw: sessionData.totalValue,
+      dateRaw: sessionData.date,
+      dateType: typeof sessionData.date
+    });
+
+    // Validação de valores com logs detalhados
     const totalValue = parseFloat(sessionData.totalValue.replace(',', '.')) || 0;
     const signalValue = parseFloat(sessionData.signalValue.replace(',', '.')) || 0;
+    
+    // ✅ DIAGNÓSTICO DETALHADO - Logs após o parsing
+    console.log('🔍 DIAGNÓSTICO COMPLETO - Dados após parsing:', {
+      totalValueParsed: totalValue,
+      signalValueParsed: signalValue,
+      signalValueIsNumber: typeof signalValue === 'number',
+      signalValueGreaterThanZero: signalValue > 0,
+      condicaoFinal: signalValue && signalValue > 0
+    });
     
     if (signalValue > totalValue) {
       toast.error('Valor do sinal não pode ser maior que o valor total');
       return;
     }
-
-    // ✅ CORREÇÃO: Logs de debug para rastrear o problema
-    console.log('🔍 DEBUG - Dados da sessão antes de criar:', {
-      signalValueString: sessionData.signalValue,
-      signalValueParsed: signalValue,
-      totalValue: totalValue,
-      condicaoAtendida: signalValue && signalValue > 0,
-      date: sessionData.date,
-      dateParsed: new Date(sessionData.date)
-    });
 
     setSaving(true);
 
@@ -362,14 +371,15 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
 
       const pendingValue = calculatePendingValue();
 
+      // ✅ CORREÇÃO CRÍTICA: Não converter para undefined se for 0
       const session: Omit<Session, 'id'> = {
         clientId,
         tattooerId: user?.id || '',
         date: new Date(sessionData.date),
         duration: parseInt(sessionData.duration),
         value: totalValue || parseFloat(sessionData.value.replace(',', '.')) || 0,
-        totalValue: totalValue || undefined,
-        signalValue: signalValue || undefined,
+        totalValue: totalValue > 0 ? totalValue : undefined,
+        signalValue: signalValue > 0 ? signalValue : undefined, // ✅ CORREÇÃO: Só undefined se for 0
         pendingValue: pendingValue > 0 ? pendingValue : undefined,
         status: sessionData.status,
         description: sessionData.description,
@@ -377,8 +387,17 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         referenceImages: referenceImages.length > 0 ? referenceImages : undefined
       };
 
-      // ✅ CORREÇÃO: Log adicional antes de chamar addSession
-      console.log('🚀 Criando sessão com dados:', session);
+      // ✅ DIAGNÓSTICO DETALHADO - Objeto final da sessão
+      console.log('🚀 DIAGNÓSTICO COMPLETO - Objeto sessão final:', {
+        session: session,
+        signalValueFinal: session.signalValue,
+        signalValueType: typeof session.signalValue,
+        dateOriginal: sessionData.date,
+        dateParsed: session.date,
+        dateFormatted: session.date.toISOString(),
+        dateLocal: session.date.toLocaleDateString('pt-BR'),
+        dateTime: session.date.toLocaleString('pt-BR')
+      });
 
       await addSession(session);
       
@@ -392,7 +411,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
       setIsOpen(false);
       resetForm();
     } catch (error) {
-      console.error('Erro ao criar sessão:', error);
+      console.error('❌ ERRO ao criar sessão:', error);
       toast.error('Erro ao agendar sessão. Tente novamente.');
     } finally {
       setSaving(false);
@@ -624,7 +643,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
             />
           </div>
 
-          {/* Imagens de Referência */}
+          {/* Imagens de Refer ência */}
           <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950">
             <Label className="text-sm font-medium text-purple-800 dark:text-purple-200">Imagens de Referência</Label>
             
