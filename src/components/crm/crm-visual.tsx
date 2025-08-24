@@ -607,8 +607,8 @@ export function CRMVisual() {
         </CardContent>
       </Card>
 
-      {/* Funil de Vendas - Mobile com scroll horizontal */}
-      <DragDropContext onDragEnd={handleDragEnd}>
+      {/* ✅ CORREÇÃO COMPLETA: Funil de Vendas com isCombineEnabled={false} */}
+      <DragDropContext onDragEnd={handleDragEnd} isCombineEnabled={false}>
         <div className="lg:hidden">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex gap-4 pb-4" style={{ width: `${columns.length * 280}px` }}>
