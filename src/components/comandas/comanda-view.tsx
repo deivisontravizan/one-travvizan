@@ -954,22 +954,6 @@ export function ComandaView() {
         </CardContent>
       </Card>
 
-      {/* DEBUG: Informações para diagnóstico */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <h4 className="font-medium text-yellow-800 mb-2">Debug - Integração Agenda → Comandas</h4>
-            <div className="text-sm text-yellow-700 space-y-1">
-              <p>Data de hoje: {todayDate.toLocaleDateString('pt-BR')}</p>
-              <p>Total de comandas: {comandas.length}</p>
-              <p>Total de sessões: {sessions.length}</p>
-              <p>Comanda de hoje: {todayComanda ? `Encontrada (${todayComanda.clients.length} clientes)` : 'Não encontrada'}</p>
-              <p>Sessões de hoje: {sessions.filter(s => isSameDate(new Date(s.date), todayDate)).length}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Comandas Abertas */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-green-600">
