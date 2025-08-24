@@ -665,7 +665,9 @@ export async function getComandas(): Promise<Comanda[]> {
       throw new Error('Usuário não autenticado');
     }
 
-    // Buscar comandas com dados relacionados usando JOIN
+    console.log('Carregando comandas para usuário:', user.id);
+
+    // Buscar apenas comandas do usuário logado
     const { data: comandasData, error: comandasError } = await supabase
       .from('comandas')
       .select('*')
@@ -677,10 +679,14 @@ export async function getComandas(): Promise<Comanda[]> {
       throw comandasError;
     }
 
-    // Para cada comanda, buscar os clientes relacionados
+    console.log(`Encontradas ${comandasData?.length || 0} comandas`);
+
+    // Para cada comanda, buscar os clientes relacionados (já filtrados por RLS)
     const comandasWithClients = await Promise.all(
       (comandasData || []).map(async (comanda) => {
-        // Buscar clientes da comanda
+        console.log(`Carregando clientes para comanda ${comanda.id}`);
+        
+        // Buscar clientes da comanda (RLS garante que só vem do usuário correto)
         const { data: clientsData, error: clientsError } = await supabase
           .from('comanda_clients')
           .select('*')
@@ -692,9 +698,13 @@ export async function getComandas(): Promise<Comanda[]> {
           // Continuar sem os clientes em caso de erro
         }
 
-        // Para cada cliente da comanda, buscar os pagamentos
+        console.log(`Encontrados ${clientsData?.length || 0} clientes para comanda ${comanda.id}`);
+
+        // Para cada cliente da comanda, buscar os pagamentos (já filtrados por RLS)
         const clientsWithPayments = await Promise.all(
           (clientsData || []).map(async (client) => {
+            console.log(`Carregando pagamentos para cliente ${client.id}`);
+            
             const { data: paymentsData, error: paymentsError } = await supabase
               .from('comanda_payments')
               .select('*')
@@ -706,6 +716,8 @@ export async function getComandas(): Promise<Comanda[]> {
               // Continuar sem os pagamentos em caso de erro
             }
 
+            console.log(`Encontrados ${paymentsData?.length || 0} pagamentos para cliente ${client.id}`);
+
             const payments = (paymentsData || []).map(payment => ({
               id: payment.id,
               comandaClientId: payment.comanda_client_id,
@@ -713,6 +725,7 @@ export async function getComandas(): Promise<Comanda[]> {
               grossValue: payment.gross_value,
               netValue: payment.net_value,
               fees: payment.fees,
+              
               installments: payment.installments,
               feesPaidByClient: payment.fees_paid_by_client,
               createdAt: new Date(payment.created_at)
@@ -748,6 +761,7 @@ export async function getComandas(): Promise<Comanda[]> {
       })
     );
 
+    console.log('Comandas carregadas com sucesso:', comandasWithClients.length);
     return comandasWithClients;
   } catch (error) {
     console.error('Erro ao buscar comandas:', error);

@@ -87,7 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getGoals(),
         getTransactions(),
         getTaxSettings(),
-        getComandas()
+        getComandas() // Usar função do database.ts que já tem toda a lógica
       ]);
 
       console.log('Dados carregados:', {
@@ -118,7 +118,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoals(goalsWithDefaults);
       
       setTransactions(transactionsData);
-      setComandasState(comandasData);
+      setComandasState(comandasData); // Usar dados já processados do database.ts
       
       // Configurar taxSettings com estrutura completa
       if (taxSettingsData) {
@@ -228,7 +228,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Funções para comandas
+  // Funções para comandas - usar apenas funções do database.ts
   const addComanda = async (comandaData: Omit<Comanda, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const newComanda = await createComanda(comandaData);
