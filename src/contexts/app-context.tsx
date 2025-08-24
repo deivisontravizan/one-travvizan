@@ -194,13 +194,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Funções para sessões
+  // ✅ DIAGNÓSTICO CRÍTICO: Função addSession com logs detalhados
   const addSession = async (sessionData: Omit<Session, 'id'>) => {
     try {
+      // ✅ LOG 1: Verificar se a função está sendo chamada
+      console.log('🚀 APP-CONTEXT: addSession chamado com dados:', {
+        sessionData: sessionData,
+        signalValue: sessionData.signalValue,
+        signalValueType: typeof sessionData.signalValue,
+        hasSignal: sessionData.signalValue && sessionData.signalValue > 0
+      });
+
+      // ✅ LOG 2: Antes de chamar createSession
+      console.log('📞 APP-CONTEXT: Chamando createSession...');
+      
       const newSession = await createSession(sessionData);
+      
+      // ✅ LOG 3: Após createSession
+      console.log('✅ APP-CONTEXT: createSession retornou:', {
+        newSession: newSession,
+        id: newSession.id
+      });
+      
       setSessions(prev => [...prev, newSession]);
+      
+      // ✅ LOG 4: Sessão adicionada ao estado
+      console.log('📝 APP-CONTEXT: Sessão adicionada ao estado local');
+      
     } catch (error) {
-      console.error('Erro ao criar sessão:', error);
+      // ✅ LOG 5: Erro detalhado
+      console.error('❌ APP-CONTEXT: Erro ao criar sessão:', {
+        error: error,
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   };

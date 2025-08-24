@@ -225,6 +225,15 @@ export async function getSessions(): Promise<Session[]> {
 
 export async function createSession(sessionData: Omit<Session, 'id'>): Promise<Session> {
   try {
+    // ✅ LOG 1: Início da função
+    console.log('🔥 DATABASE: createSession iniciado com dados:', {
+      sessionData: sessionData,
+      signalValue: sessionData.signalValue,
+      signalValueType: typeof sessionData.signalValue,
+      date: sessionData.date,
+      dateString: sessionData.date.toISOString()
+    });
+
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -245,14 +254,8 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       throw new Error('Duração da sessão deve ser maior que zero');
     }
 
-    // ✅ CORREÇÃO CRÍTICA: Log de debug para verificar dados recebidos
-    console.log('🔍 DEBUG - createSession recebeu:', {
-      signalValue: sessionData.signalValue,
-      totalValue: sessionData.totalValue,
-      value: sessionData.value,
-      date: sessionData.date,
-      clientId: sessionData.clientId
-    });
+    // ✅ LOG 2: Antes de inserir no banco
+    console.log('💾 DATABASE: Inserindo sessão no banco...');
 
     const { data, error } = await supabase
       .from('sessions')
@@ -274,9 +277,12 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       .single();
 
     if (error) {
-      console.error('Erro ao criar sessão:', error);
+      console.error('❌ DATABASE: Erro ao criar sessão no banco:', error);
       throw error;
     }
+
+    // ✅ LOG 3: Sessão criada no banco
+    console.log('✅ DATABASE: Sessão criada no banco com ID:', data.id);
 
     const newSession = {
       id: data.id,
@@ -294,11 +300,18 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       referenceImages: data.reference_images || []
     };
 
-    // ✅ CORREÇÃO CRÍTICA: Usar sessionData.signalValue (que já vem parseado) em vez de string
+    // ✅ LOG 4: Verificando condição de integração
+    console.log('🔍 DATABASE: Verificando condição de integração:', {
+      signalValue: sessionData.signalValue,
+      signalValueType: typeof sessionData.signalValue,
+      signalValueGreaterThanZero: sessionData.signalValue && sessionData.signalValue > 0,
+      condicaoAtendida: sessionData.signalValue && sessionData.signalValue > 0
+    });
+
     // INTEGRAÇÃO AGENDA → COMANDAS: Se há sinal, criar entrada automática na comanda
     if (sessionData.signalValue && sessionData.signalValue > 0) {
       try {
-        console.log('✅ Sessão com sinal detectada, integrando com comanda...', {
+        console.log('🎯 DATABASE: Condição atendida! Iniciando integração...', {
           signalValue: sessionData.signalValue,
           condicaoAtendida: true
         });
@@ -311,7 +324,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
           .single();
 
         if (clientError) {
-          console.error('Erro ao buscar dados do cliente:', clientError);
+          console.error('❌ DATABASE: Erro ao buscar dados do cliente:', clientError);
           throw new Error('Cliente não encontrado');
         }
 
@@ -319,7 +332,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
         const sessionDate = new Date(sessionData.date);
         const dateString = formatDateForDatabase(sessionDate);
 
-        console.log('📅 Data formatada para busca de comanda:', {
+        console.log('📅 DATABASE: Data formatada para busca de comanda:', {
           sessionDate: sessionDate,
           dateString: dateString,
           sessionDateString: sessionDate.toLocaleDateString('pt-BR')
@@ -338,7 +351,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
 
         // Se não existe comanda aberta, criar uma nova
         if (!existingComanda) {
-          console.log('🆕 Criando nova comanda para o dia:', dateString);
+          console.log('🆕 DATABASE: Criando nova comanda para o dia:', dateString);
           const { data: newComanda, error: comandaError } = await supabase
             .from('comandas')
             .insert({
@@ -351,14 +364,14 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             .single();
 
           if (comandaError) {
-            console.error('Erro ao criar comanda automática:', comandaError);
+            console.error('❌ DATABASE: Erro ao criar comanda automática:', comandaError);
             throw new Error('Erro ao criar comanda automática');
           } else {
             comandaId = newComanda.id;
-            console.log('✅ Nova comanda criada:', comandaId);
+            console.log('✅ DATABASE: Nova comanda criada:', comandaId);
           }
         } else {
-          console.log('📋 Comanda existente encontrada:', existingComanda.id);
+          console.log('📋 DATABASE: Comanda existente encontrada:', existingComanda.id);
         }
 
         // Verificar se cliente já existe na comanda para evitar duplicatas
@@ -371,7 +384,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             .single();
 
           if (!existingClient) {
-            console.log('👤 Adicionando cliente à comanda:', comandaId);
+            console.log('👤 DATABASE: Adicionando cliente à comanda:', comandaId);
             const { error: clientError } = await supabase
               .from('comanda_clients')
               .insert({
@@ -385,20 +398,20 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
               });
 
             if (clientError) {
-              console.error('Erro ao adicionar cliente à comanda:', clientError);
+              console.error('❌ DATABASE: Erro ao adicionar cliente à comanda:', clientError);
               throw new Error('Erro ao adicionar cliente à comanda');
             } else {
-              console.log('✅ Cliente adicionado à comanda com sucesso');
+              console.log('✅ DATABASE: Cliente adicionado à comanda com sucesso');
             }
           } else {
-            console.log('⚠️ Cliente já existe na comanda, pulando duplicata');
+            console.log('⚠️ DATABASE: Cliente já existe na comanda, pulando duplicata');
           }
         }
 
-        // ✅ NOVA FUNCIONALIDADE: INTEGRAÇÃO AGENDA → FINANCEIRO
+        // INTEGRAÇÃO AGENDA → FINANCEIRO
         // Criar transação automática para o sinal
         try {
-          console.log('💰 Criando transação automática para o sinal...');
+          console.log('💰 DATABASE: Criando transação automática para o sinal...');
           
           const transactionDescription = `Sinal - ${clientName} - ${sessionData.description}`;
           
@@ -419,32 +432,35 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             });
 
           if (transactionError) {
-            console.error('Erro ao criar transação automática do sinal:', transactionError);
+            console.error('❌ DATABASE: Erro ao criar transação automática do sinal:', transactionError);
             throw new Error('Erro ao criar transação automática do sinal');
           } else {
-            console.log('✅ Transação automática do sinal criada com sucesso');
+            console.log('✅ DATABASE: Transação automática do sinal criada com sucesso');
           }
         } catch (financialError) {
-          console.error('Erro na integração Agenda → Financeiro:', financialError);
+          console.error('❌ DATABASE: Erro na integração Agenda → Financeiro:', financialError);
           // Não falhar a criação da sessão por causa da integração financeira
-          console.warn('Sessão e comanda criadas, mas integração financeira falhou');
+          console.warn('⚠️ DATABASE: Sessão e comanda criadas, mas integração financeira falhou');
         }
 
       } catch (integrationError) {
-        console.error('Erro na integração Agenda → Comandas:', integrationError);
+        console.error('❌ DATABASE: Erro na integração Agenda → Comandas:', integrationError);
         // Não falhar a criação da sessão por causa da integração
-        console.warn('Sessão criada, mas integração com comanda falhou');
+        console.warn('⚠️ DATABASE: Sessão criada, mas integração com comanda falhou');
       }
     } else {
-      console.log('ℹ️ Sessão sem sinal ou sinal = 0, pulando integração automática', {
+      console.log('ℹ️ DATABASE: Sessão sem sinal ou sinal = 0, pulando integração automática', {
         signalValue: sessionData.signalValue,
         condicaoAtendida: false
       });
     }
 
+    // ✅ LOG 5: Retornando sessão
+    console.log('🎉 DATABASE: createSession finalizado com sucesso, retornando sessão:', newSession.id);
+
     return newSession;
   } catch (error) {
-    console.error('Erro ao criar sessão:', error);
+    console.error('❌ DATABASE: Erro geral em createSession:', error);
     throw error;
   }
 }
@@ -1026,7 +1042,7 @@ export async function createComandaClient(clientData: Omit<ComandaClient, 'id' |
       throw new Error('Descrição do serviço é obrigatória');
     }
     if (!clientData.value || clientData.value <= 0) {
-      throw new Error('Valor do serviço deve ser maior que zero');
+      throw new Error('Valor do ser viço deve ser maior que zero');
     }
 
     // Verificar se a comanda pertence ao usuário (ownership)
