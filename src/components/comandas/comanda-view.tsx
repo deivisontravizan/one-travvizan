@@ -696,7 +696,7 @@ export function ComandaView() {
             if (!comanda || !comanda.date) {
               return false;
             }
-            return i sSameDate(new Date(comanda.date), selectedDate);
+            return isSameDate(new Date(comanda.date), selectedDate);
           } catch (error) {
             console.error('Erro ao filtrar comanda por data:', error);
             return false;
