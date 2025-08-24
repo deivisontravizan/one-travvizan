@@ -41,7 +41,7 @@ import {
   Info
 } from 'lucide-react';
 
-// ✅ CORREÇÃO: Funções utilitárias movidas para fora do componente
+// ✅ Funções utilitárias
 const getTodayDate = () => {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -68,7 +68,7 @@ const formatCurrency = (value: number) => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-// ✅ CORREÇÃO: Função para calcular total pago com verificações de segurança
+// ✅ CORREÇÃO CRÍTICA: Função para calcular total pago de um cliente
 const calculateTotalPaid = (client: ComandaClient) => {
   try {
     if (!client?.payments || !Array.isArray(client.payments)) {
@@ -87,21 +87,7 @@ const calculateTotalPaid = (client: ComandaClient) => {
   }
 };
 
-// ✅ CORREÇÃO: Função para verificar se cliente está totalmente pago
-const isClientFullyPaid = (client: ComandaClient) => {
-  try {
-    if (!client || typeof client.value !== 'number') return false;
-    
-    const totalPaid = calculateTotalPaid(client);
-    const tolerance = 0.01; // Tolerância para diferenças de centavos
-    return Math.abs(totalPaid - client.value) < tolerance;
-  } catch (error) {
-    console.error('Erro ao verificar se cliente está pago:', error);
-    return false;
-  }
-};
-
-// ✅ CORREÇÃO: Função para buscar sinal pago
+// ✅ CORREÇÃO CRÍTICA: Buscar sinal pago para uma sessão específica
 const getSignalPaidForSession = (sessionId: string, transactions: Transaction[]) => {
   try {
     if (!sessionId || !Array.isArray(transactions)) return 0;
@@ -124,7 +110,62 @@ const getSignalPaidForSession = (sessionId: string, transactions: Transaction[])
   }
 };
 
-// ✅ CORREÇÃO: Função para buscar sessões agendadas
+// ✅ CORREÇÃO CRÍTICA: Verificar se cliente está totalmente pago (considerando sinal)
+const isClientFullyPaid = (client: ComandaClient, transactions: Transaction[]) => {
+  try {
+    if (!client || typeof client.value !== 'number') return false;
+    
+    const totalPaid = calculateTotalPaid(client);
+    const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId, transactions) : 0;
+    
+    // Total recebido = pagamentos na comanda + sinal já pago
+    const totalReceived = totalPaid + signalPaid;
+    
+    const tolerance = 0.01; // Tolerância para diferenças de centavos
+    const isFullyPaid = Math.abs(totalReceived - client.value) < tolerance;
+    
+    console.log('Verificação de pagamento completo:', {
+      clientName: client.clientName,
+      valorTotal: client.value,
+      pagamentosComanda: totalPaid,
+      sinalPago: signalPaid,
+      totalRecebido: totalReceived,
+      isFullyPaid: isFullyPaid
+    });
+    
+    return isFullyPaid;
+  } catch (error) {
+    console.error('Erro ao verificar se cliente está pago:', error);
+    return false;
+  }
+};
+
+// ✅ CORREÇÃO CRÍTICA: Calcular valor restante a pagar (descontando sinal)
+const calculateRemainingValue = (client: ComandaClient, transactions: Transaction[]) => {
+  try {
+    if (!client || typeof client.value !== 'number') return 0;
+    
+    const totalPaid = calculateTotalPaid(client);
+    const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId, transactions) : 0;
+    
+    // Valor restante = valor total - sinal já pago - pagamentos na comanda
+    const remainingValue = client.value - signalPaid - totalPaid;
+    
+    console.log('Cálculo valor restante:', {
+      clientName: client.clientName,
+      valorTotal: client.value,
+      sinalPago: signalPaid,
+      pagamentosComanda: totalPaid,
+      valorRestante: Math.max(0, remainingValue)
+    });
+    
+    return Math.max(0, remainingValue);
+  } catch (error) {
+    console.error('Erro ao calcular valor restante:', error);
+    return 0;
+  }
+};
+
 const getScheduledSessionsForDate = (date: Date, sessions: Session[]) => {
   try {
     if (!date || !Array.isArray(sessions)) return [];
@@ -139,7 +180,6 @@ const getScheduledSessionsForDate = (date: Date, sessions: Session[]) => {
   }
 };
 
-// ✅ CORREÇÃO: Função para converter sessão em cliente da comanda
 const convertSessionToComandaClient = (session: Session, clients: Client[]): ComandaClient => {
   try {
     const client = clients.find(c => c.id === session.clientId);
@@ -181,27 +221,28 @@ interface PaymentFormProps {
     remainingValue: number;
     totalValue: number;
   };
+  transactions: Transaction[];
 }
 
-function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFormProps) {
+function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo, transactions }: PaymentFormProps) {
   const { taxSettings } = useApp();
   const [saving, setSaving] = useState(false);
   
-  // ✅ CORREÇÃO: Calcular valor restante de forma segura
+  // ✅ CORREÇÃO CRÍTICA: Calcular valor restante corretamente
   const remainingValue = useMemo(() => {
     try {
+      // Se há informação de sessão, usar o valor restante calculado
       if (sessionInfo) {
         return sessionInfo.remainingValue || 0;
       }
       
-      const totalPaid = calculateTotalPaid(comandaClient);
-      const totalValue = comandaClient?.value || 0;
-      return Math.max(0, totalValue - totalPaid);
+      // Senão, calcular baseado no cliente e transações
+      return calculateRemainingValue(comandaClient, transactions);
     } catch (error) {
       console.error('Erro ao calcular valor restante:', error);
       return 0;
     }
-  }, [comandaClient, sessionInfo]);
+  }, [comandaClient, sessionInfo, transactions]);
   
   const [payments, setPayments] = useState<Array<{
     method: ComandaPayment['method'];
@@ -381,7 +422,7 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
         </p>
       </div>
 
-      {/* Informações de Pagamento */}
+      {/* ✅ CORREÇÃO: Informações de Pagamento com dados corretos */}
       <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
         <div className="flex items-center gap-2 mb-3">
           <Info className="h-4 w-4 text-blue-600" />
@@ -410,7 +451,7 @@ function PaymentForm({ comandaClient, onSave, onCancel, sessionInfo }: PaymentFo
           </div>
         </div>
         <div className="mt-3 p-2 bg-blue-100 dark:bg-blue-900 rounded text-xs text-blue-800 dark:text-blue-200">
-          💡 O valor foi pré-preenchido com o valor restante a pagar.
+          💡 O valor foi pré-preenchido com o valor restante a pagar (descontando o sinal já recebido).
         </div>
       </div>
 
@@ -703,10 +744,9 @@ export function ComandaView() {
   
   // Estados para filtro de data
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // ✅ CORREÇÃO: Funções memoizadas para evitar re-renders
+  // ✅ Funções memoizadas para evitar re-renders
   const getCombinedClientsForDate = useCallback((comanda: Comanda) => {
     try {
       if (!comanda?.date) return [];
@@ -854,6 +894,7 @@ export function ComandaView() {
     }
   };
 
+  // ✅ CORREÇÃO CRÍTICA: Função para processar pagamento de cliente agendado
   const handlePaymentForScheduledClient = async (client: ComandaClient, comandaId: string) => {
     try {
       const existingComanda = comandas.find(c => c.id === comandaId);
@@ -873,16 +914,17 @@ export function ComandaView() {
         );
         
         if (existingClient) {
+          // ✅ CORREÇÃO: Calcular informações corretas da sessão
           let sessionInfo = undefined;
           if (client.sessionId) {
             const signalPaid = getSignalPaidForSession(client.sessionId, transactions);
             const totalValue = client.value;
-            const remainingValue = totalValue - signalPaid;
+            const remainingValue = calculateRemainingValue(existingClient, transactions);
             
             sessionInfo = {
               signalPaid,
               totalValue,
-              remainingValue: remainingValue > 0 ? remainingValue : 0
+              remainingValue
             };
           }
           
@@ -907,16 +949,17 @@ export function ComandaView() {
 
         await addComandaClient(clientData);
         
+        // ✅ CORREÇÃO: Calcular informações corretas da sessão
         let sessionInfo = undefined;
         if (client.sessionId) {
           const signalPaid = getSignalPaidForSession(client.sessionId, transactions);
           const totalValue = client.value;
-          const remainingValue = totalValue - signalPaid;
+          const remainingValue = calculateRemainingValue(client, transactions);
           
           sessionInfo = {
             signalPaid,
             totalValue,
-            remainingValue: remainingValue > 0 ? remainingValue : 0
+            remainingValue
           };
         }
         
@@ -1180,8 +1223,8 @@ export function ComandaView() {
                         const isFromSession = client.id.startsWith('session-');
                         const signalPaid = client.sessionId ? getSignalPaidForSession(client.sessionId, transactions) : 0;
                         
-                        // ✅ CORREÇÃO: Verificar se está totalmente pago
-                        const isFullyPaid = isClientFullyPaid(client);
+                        // ✅ CORREÇÃO CRÍTICA: Verificar se está totalmente pago considerando sinal
+                        const isFullyPaid = isClientFullyPaid(client, transactions);
                         
                         return (
                           <div key={client.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -1222,7 +1265,7 @@ export function ComandaView() {
                                   </p>
                                 )}
                               </div>
-                              {/* ✅ CORREÇÃO: Mostrar status correto */}
+                              {/* ✅ CORREÇÃO CRÍTICA: Mostrar status correto considerando sinal */}
                               {isFullyPaid ? (
                                 <Badge variant="outline" className="text-green-600 border-green-600">
                                   <CheckCircle className="h-3 w-3 mr-1" />
@@ -1354,7 +1397,7 @@ export function ComandaView() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para registrar pagamento */}
+      {/* ✅ CORREÇÃO: Dialog para registrar pagamento com transactions */}
       <Dialog open={isPaymentFormOpen} onOpenChange={setIsPaymentFormOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1364,6 +1407,7 @@ export function ComandaView() {
             <PaymentForm
               comandaClient={selectedClient}
               sessionInfo={selectedSessionInfo}
+              transactions={transactions}
               onSave={handleSavePayment}
               onCancel={() => {
                 setIsPaymentFormOpen(false);
