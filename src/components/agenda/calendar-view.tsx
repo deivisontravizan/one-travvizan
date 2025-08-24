@@ -309,6 +309,16 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
       return;
     }
 
+    // ✅ CORREÇÃO: Logs de debug para rastrear o problema
+    console.log('🔍 DEBUG - Dados da sessão antes de criar:', {
+      signalValueString: sessionData.signalValue,
+      signalValueParsed: signalValue,
+      totalValue: totalValue,
+      condicaoAtendida: signalValue && signalValue > 0,
+      date: sessionData.date,
+      dateParsed: new Date(sessionData.date)
+    });
+
     setSaving(true);
 
     try {
@@ -367,11 +377,14 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
         referenceImages: referenceImages.length > 0 ? referenceImages : undefined
       };
 
+      // ✅ CORREÇÃO: Log adicional antes de chamar addSession
+      console.log('🚀 Criando sessão com dados:', session);
+
       await addSession(session);
       
       // Se há valor de sinal, registrar automaticamente na comanda
       if (signalValue > 0) {
-        toast.success(`Sessão agendada! Sinal de ${signalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} será registrado na comanda.`);
+        toast.success(`Sessão agendada! Sinal de ${signalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} será registrado na comanda e no financeiro.`);
       } else {
         toast.success('Sessão agendada com sucesso!');
       }
@@ -580,7 +593,7 @@ function NewSessionDialog({ selectedDate }: NewSessionDialogProps) {
             {sessionData.signalValue && parseFloat(sessionData.signalValue.replace(',', '.')) > 0 && (
               <div className="mt-3 p-3 bg-green-100 dark:bg-green-900 rounded border border-green-200 dark:border-green-800">
                 <p className="text-sm text-green-800 dark:text-green-200">
-                  💡 O valor do sinal será registrado automaticamente na comanda do dia do atendimento.
+                  💡 O valor do sinal será registrado automaticamente na comanda do dia do atendimento e no financeiro.
                 </p>
               </div>
             )}

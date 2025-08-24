@@ -245,6 +245,15 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       throw new Error('Duração da sessão deve ser maior que zero');
     }
 
+    // ✅ CORREÇÃO CRÍTICA: Log de debug para verificar dados recebidos
+    console.log('🔍 DEBUG - createSession recebeu:', {
+      signalValue: sessionData.signalValue,
+      totalValue: sessionData.totalValue,
+      value: sessionData.value,
+      date: sessionData.date,
+      clientId: sessionData.clientId
+    });
+
     const { data, error } = await supabase
       .from('sessions')
       .insert({
@@ -285,10 +294,14 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
       referenceImages: data.reference_images || []
     };
 
+    // ✅ CORREÇÃO CRÍTICA: Usar sessionData.signalValue (que já vem parseado) em vez de string
     // INTEGRAÇÃO AGENDA → COMANDAS: Se há sinal, criar entrada automática na comanda
     if (sessionData.signalValue && sessionData.signalValue > 0) {
       try {
-        console.log('Sessão com sinal detectada, integrando com comanda...');
+        console.log('✅ Sessão com sinal detectada, integrando com comanda...', {
+          signalValue: sessionData.signalValue,
+          condicaoAtendida: true
+        });
         
         // Buscar cliente para obter o nome
         const { data: clientData, error: clientError } = await supabase
@@ -306,6 +319,12 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
         const sessionDate = new Date(sessionData.date);
         const dateString = formatDateForDatabase(sessionDate);
 
+        console.log('📅 Data formatada para busca de comanda:', {
+          sessionDate: sessionDate,
+          dateString: dateString,
+          sessionDateString: sessionDate.toLocaleDateString('pt-BR')
+        });
+
         // Verificar se existe comanda aberta para o dia
         const { data: existingComanda } = await supabase
           .from('comandas')
@@ -319,7 +338,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
 
         // Se não existe comanda aberta, criar uma nova
         if (!existingComanda) {
-          console.log('Criando nova comanda para o dia:', dateString);
+          console.log('🆕 Criando nova comanda para o dia:', dateString);
           const { data: newComanda, error: comandaError } = await supabase
             .from('comandas')
             .insert({
@@ -336,8 +355,10 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             throw new Error('Erro ao criar comanda automática');
           } else {
             comandaId = newComanda.id;
-            console.log('Nova comanda criada:', comandaId);
+            console.log('✅ Nova comanda criada:', comandaId);
           }
+        } else {
+          console.log('📋 Comanda existente encontrada:', existingComanda.id);
         }
 
         // Verificar se cliente já existe na comanda para evitar duplicatas
@@ -350,7 +371,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             .single();
 
           if (!existingClient) {
-            console.log('Adicionando cliente à comanda:', comandaId);
+            console.log('👤 Adicionando cliente à comanda:', comandaId);
             const { error: clientError } = await supabase
               .from('comanda_clients')
               .insert({
@@ -367,17 +388,17 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
               console.error('Erro ao adicionar cliente à comanda:', clientError);
               throw new Error('Erro ao adicionar cliente à comanda');
             } else {
-              console.log('Cliente adicionado à comanda com sucesso');
+              console.log('✅ Cliente adicionado à comanda com sucesso');
             }
           } else {
-            console.log('Cliente já existe na comanda, pulando duplicata');
+            console.log('⚠️ Cliente já existe na comanda, pulando duplicata');
           }
         }
 
         // ✅ NOVA FUNCIONALIDADE: INTEGRAÇÃO AGENDA → FINANCEIRO
         // Criar transação automática para o sinal
         try {
-          console.log('Criando transação automática para o sinal...');
+          console.log('💰 Criando transação automática para o sinal...');
           
           const transactionDescription = `Sinal - ${clientName} - ${sessionData.description}`;
           
@@ -401,7 +422,7 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
             console.error('Erro ao criar transação automática do sinal:', transactionError);
             throw new Error('Erro ao criar transação automática do sinal');
           } else {
-            console.log('Transação automática do sinal criada com sucesso');
+            console.log('✅ Transação automática do sinal criada com sucesso');
           }
         } catch (financialError) {
           console.error('Erro na integração Agenda → Financeiro:', financialError);
@@ -414,6 +435,11 @@ export async function createSession(sessionData: Omit<Session, 'id'>): Promise<S
         // Não falhar a criação da sessão por causa da integração
         console.warn('Sessão criada, mas integração com comanda falhou');
       }
+    } else {
+      console.log('ℹ️ Sessão sem sinal ou sinal = 0, pulando integração automática', {
+        signalValue: sessionData.signalValue,
+        condicaoAtendida: false
+      });
     }
 
     return newSession;
@@ -620,6 +646,7 @@ export async function createOrUpdateGoal(goalData: Omit<Goal, 'id'>): Promise<Go
     }
 
     // Verificar se já existe uma meta para o mês
+    
     const { data: existingGoal } = await supabase
       .from('goals')
       .select('*')
